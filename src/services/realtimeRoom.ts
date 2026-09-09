@@ -244,7 +244,7 @@ export async function startOnlineAuction(room: RoomState, allPlayers: Player[]):
     roundNumber: 1,
     player: randomPlayer,
     version: chosenVersion,
-    highestBid: room.config.minIncrement,
+    highestBid: 0,
     highestBidderId: null,
     currentTurnBuyerIndex: 0,
     consecutivePasses: 0,
@@ -278,31 +278,45 @@ export async function placeBidInRoom(
   participantId: string,
   amount: number
 ): Promise<void> {
-  if (!room.ronda_actual || room.ronda_actual.isClosed) return;
+  const currentRoom = (await getRoom(room.codigo)) || room;
+  if (!currentRoom.ronda_actual || currentRoom.ronda_actual.isClosed) return;
 
-  const buyer = room.participantes.find((p) => p.id === participantId);
-  if (!buyer || buyer.budget < amount) return;
+  const buyer = currentRoom.participantes.find((p) => p.id === participantId);
+  if (!buyer) return;
 
-  const activeBidders = room.participantes.filter(
-    (b) => b.squad.length < room.config.targetSquadSize
+  // Si es puja de rescate de cantera (0 Fichas):
+  // Se permite cuando nadie ha ofertado aún y el participante no tiene fondos para la puja mínima
+  const isRescueBid = amount === 0 && currentRoom.ronda_actual.highestBid === 0;
+  if (!isRescueBid) {
+    if (buyer.budget < amount) return;
+    if (amount <= currentRoom.ronda_actual.highestBid) return;
+  }
+
+  const activeBidders = currentRoom.participantes.filter(
+    (b) => b.squad.length < currentRoom.config.targetSquadSize
   );
 
-  const nextIdx =
+  const safeNextIdx =
     activeBidders.length > 0
-      ? (room.ronda_actual.currentTurnBuyerIndex + 1) % activeBidders.length
+      ? (currentRoom.ronda_actual.currentTurnBuyerIndex + 1) % activeBidders.length
       : 0;
 
   const updatedRound: RoomRoundState = {
-    ...room.ronda_actual,
+    ...currentRoom.ronda_actual,
     highestBid: amount,
     highestBidderId: participantId,
-    currentTurnBuyerIndex: nextIdx,
+    currentTurnBuyerIndex: safeNextIdx,
     consecutivePasses: 0, // Se resetean los pases tras una nueva oferta
   };
 
+  const bidMsg =
+    amount === 0
+      ? `🚨 ${buyer.name} solicitó un Fichaje de Rescate de Cantera (0 Fichas).`
+      : `🔥 ${buyer.name} ofertó ${amount} Fichas Estelares.`;
+
   const updatedHistorial = [
-    `🔥 ${buyer.name} ofertó ${amount} Fichas Estelares.`,
-    ...room.historial.slice(0, 15),
+    bidMsg,
+    ...currentRoom.historial.slice(0, 15),
   ];
 
   await supabase
@@ -312,7 +326,7 @@ export async function placeBidInRoom(
       historial: updatedHistorial,
       updated_at: new Date().toISOString(),
     })
-    .eq('codigo', room.codigo);
+    .eq('codigo', currentRoom.codigo);
 }
 
 /**
@@ -322,26 +336,82 @@ export async function passTurnInRoom(
   room: RoomState,
   participantId: string
 ): Promise<void> {
-  if (!room.ronda_actual || room.ronda_actual.isClosed) return;
+  const currentRoom = (await getRoom(room.codigo)) || room;
+  if (!currentRoom.ronda_actual || currentRoom.ronda_actual.isClosed) return;
 
-  const buyer = room.participantes.find((p) => p.id === participantId);
+  const buyer = currentRoom.participantes.find((p) => p.id === participantId);
   if (!buyer) return;
 
-  const activeBidders = room.participantes.filter(
-    (b) => b.squad.length < room.config.targetSquadSize
+  const activeBidders = currentRoom.participantes.filter(
+    (b) => b.squad.length < currentRoom.config.targetSquadSize
   );
 
-  const newPasses = room.ronda_actual.consecutivePasses + 1;
+  const newPasses = currentRoom.ronda_actual.consecutivePasses + 1;
   const newHistorial = [
     `✋ ${buyer.name} pasó turno.`,
-    ...room.historial.slice(0, 15),
+    ...currentRoom.historial.slice(0, 15),
   ];
 
-  // Caso 1: Nadie ofertó y todos pasaron -> Ronda Desierta
-  if (room.ronda_actual.highestBidderId === null) {
+  // Caso 1: Nadie ofertó y todos pasaron
+  if (currentRoom.ronda_actual.highestBidderId === null) {
     if (newPasses >= activeBidders.length) {
+      // 🌟 RESCATE FINANCIERO:
+      // Si algún manager activo no tiene presupuesto suficiente (< minIncrement),
+      // se le adjudica el futbolista como Agente Libre de Cantera a 0 Fichas para no bloquear la partida!
+      const minInc = currentRoom.config.minIncrement || 5;
+      const brokeManagers = activeBidders.filter((b) => b.budget < minInc);
+
+      if (brokeManagers.length > 0) {
+        brokeManagers.sort((a, b) => a.squad.length - b.squad.length);
+        const rescueWinner = brokeManagers[0];
+
+        const boughtItem: BoughtPlayer = {
+          playerId: currentRoom.ronda_actual.player.id,
+          playerName: currentRoom.ronda_actual.player.name,
+          version: currentRoom.ronda_actual.version,
+          paidPrice: 0,
+          roundNumber: currentRoom.ronda_actual.roundNumber,
+        };
+
+        const updatedParticipants = currentRoom.participantes.map((p) => {
+          if (p.id === rescueWinner.id) {
+            return {
+              ...p,
+              squad: [...p.squad, boughtItem],
+            };
+          }
+          return p;
+        });
+
+        const closedRound: RoomRoundState = {
+          ...currentRoom.ronda_actual,
+          highestBid: 0,
+          highestBidderId: rescueWinner.id,
+          isClosed: true,
+          isRevealed: true,
+          consecutivePasses: newPasses,
+        };
+
+        const rescueHistorial = [
+          `🚨 ¡RESCATE DE CANTERA! Al no haber ofertas, ${rescueWinner.name} recibe a ${currentRoom.ronda_actual.player.name} como Agente Libre (0 Fichas).`,
+          ...newHistorial,
+        ];
+
+        await supabase
+          .from('salas')
+          .update({
+            participantes: updatedParticipants,
+            ronda_actual: closedRound,
+            historial: rescueHistorial,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('codigo', currentRoom.codigo);
+        return;
+      }
+
+      // Si todos tenían fondos y voluntariamente pasaron -> Ronda Desierta estándar
       const closedRound: RoomRoundState = {
-        ...room.ronda_actual,
+        ...currentRoom.ronda_actual,
         isDesierta: true,
         isClosed: true,
         isRevealed: true,
@@ -355,31 +425,31 @@ export async function passTurnInRoom(
           historial: ['❌ Ronda desierta. Ningún DT ofertó por la silueta.', ...newHistorial],
           updated_at: new Date().toISOString(),
         })
-        .eq('codigo', room.codigo);
+        .eq('codigo', currentRoom.codigo);
       return;
     }
   } else {
     // Caso 2: Hay un mejor postor y todos los demás pasaron -> Adjudicado
     if (newPasses >= activeBidders.length - 1) {
-      const winner = room.participantes.find(
-        (p) => p.id === room.ronda_actual?.highestBidderId
+      const winner = currentRoom.participantes.find(
+        (p) => p.id === currentRoom.ronda_actual?.highestBidderId
       );
       if (!winner) return;
 
-      const price = room.ronda_actual.highestBid;
+      const price = currentRoom.ronda_actual.highestBid;
       const boughtItem: BoughtPlayer = {
-        playerId: room.ronda_actual.player.id,
-        playerName: room.ronda_actual.player.name,
-        version: room.ronda_actual.version,
+        playerId: currentRoom.ronda_actual.player.id,
+        playerName: currentRoom.ronda_actual.player.name,
+        version: currentRoom.ronda_actual.version,
         paidPrice: price,
-        roundNumber: room.ronda_actual.roundNumber,
+        roundNumber: currentRoom.ronda_actual.roundNumber,
       };
 
-      const updatedParticipants = room.participantes.map((p) => {
+      const updatedParticipants = currentRoom.participantes.map((p) => {
         if (p.id === winner.id) {
           return {
             ...p,
-            budget: p.budget - price,
+            budget: Math.max(0, p.budget - price),
             squad: [...p.squad, boughtItem],
           };
         }
@@ -387,13 +457,15 @@ export async function passTurnInRoom(
       });
 
       const closedRound: RoomRoundState = {
-        ...room.ronda_actual,
+        ...currentRoom.ronda_actual,
         isClosed: true,
         isRevealed: true,
       };
 
       const finalHistorial = [
-        `🎉 ¡ADJUDICADO! ${winner.name} fichó a ${room.ronda_actual.player.name} por ${price} Fichas.`,
+        price === 0
+          ? `🎉 ¡ADJUDICADO POR RESCATE! ${winner.name} fichó a ${currentRoom.ronda_actual.player.name} a Coste Cero (0 Fichas).`
+          : `🎉 ¡ADJUDICADO! ${winner.name} fichó a ${currentRoom.ronda_actual.player.name} por ${price} Fichas.`,
         ...newHistorial,
       ];
 
@@ -405,20 +477,20 @@ export async function passTurnInRoom(
           historial: finalHistorial,
           updated_at: new Date().toISOString(),
         })
-        .eq('codigo', room.codigo);
+        .eq('codigo', currentRoom.codigo);
       return;
     }
   }
 
-  // Si no se cerró, avanza el turno al siguiente participante
-  const nextIdx =
+  // Si no se cerró, avanza el turno al siguiente participante con índice protegido
+  const safeNextIdx =
     activeBidders.length > 0
-      ? (room.ronda_actual.currentTurnBuyerIndex + 1) % activeBidders.length
+      ? (currentRoom.ronda_actual.currentTurnBuyerIndex + 1) % activeBidders.length
       : 0;
 
   const updatedRound: RoomRoundState = {
-    ...room.ronda_actual,
-    currentTurnBuyerIndex: nextIdx,
+    ...currentRoom.ronda_actual,
+    currentTurnBuyerIndex: safeNextIdx,
     consecutivePasses: newPasses,
   };
 
@@ -429,7 +501,7 @@ export async function passTurnInRoom(
       historial: newHistorial,
       updated_at: new Date().toISOString(),
     })
-    .eq('codigo', room.codigo);
+    .eq('codigo', currentRoom.codigo);
 }
 
 /**
@@ -440,29 +512,30 @@ export async function buyClueInRoom(
   participantId: string,
   clueType: 'posicion' | 'continente' | 'decada'
 ): Promise<void> {
-  if (!room.ronda_actual || room.ronda_actual.isClosed) return;
+  const currentRoom = (await getRoom(room.codigo)) || room;
+  if (!currentRoom.ronda_actual || currentRoom.ronda_actual.isClosed) return;
 
-  const buyer = room.participantes.find((p) => p.id === participantId);
+  const buyer = currentRoom.participantes.find((p) => p.id === participantId);
   if (!buyer) return;
 
-  const clueCost = Math.max(10, Math.round(room.config.initialBudget * 0.05));
+  const clueCost = Math.max(10, Math.round(currentRoom.config.initialBudget * 0.05));
   if (buyer.budget < clueCost) return;
 
   let clueVal = '';
   if (clueType === 'posicion') {
-    clueVal = room.ronda_actual.version.posicionPista || room.ronda_actual.version.posicion || 'Campo';
+    clueVal = currentRoom.ronda_actual.version.posicionPista || currentRoom.ronda_actual.version.posicion || 'Campo';
   } else if (clueType === 'continente') {
-    clueVal = room.ronda_actual.version.continentePista || 'Internacional';
+    clueVal = currentRoom.ronda_actual.version.continentePista || 'Internacional';
   } else {
-    clueVal = room.ronda_actual.version.decadaPista || 'Época Actual';
+    clueVal = currentRoom.ronda_actual.version.decadaPista || 'Época Actual';
   }
 
-  const updatedParticipants = room.participantes.map((p) =>
+  const updatedParticipants = currentRoom.participantes.map((p) =>
     p.id === participantId ? { ...p, budget: p.budget - clueCost } : p
   );
 
   const updatedRound: RoomRoundState = {
-    ...room.ronda_actual,
+    ...currentRoom.ronda_actual,
     purchasedClue: {
       type: clueType,
       label: `${clueType.toUpperCase()}: ${clueVal}`,
@@ -477,11 +550,11 @@ export async function buyClueInRoom(
       ronda_actual: updatedRound,
       historial: [
         `💡 ${buyer.name} desbloqueó la pista de ${clueType.toUpperCase()} (-${clueCost} Fichas)`,
-        ...room.historial.slice(0, 15),
+        ...currentRoom.historial.slice(0, 15),
       ],
       updated_at: new Date().toISOString(),
     })
-    .eq('codigo', room.codigo);
+    .eq('codigo', currentRoom.codigo);
 }
 
 /**
@@ -491,9 +564,17 @@ export async function advanceNextRoundInRoom(
   room: RoomState,
   allPlayers: Player[]
 ): Promise<void> {
+  const currentRoom = (await getRoom(room.codigo)) || room;
+
+  // Guarda de idempotencia: Si la ronda actual existe y aún NO está cerrada, se ignora el avance duplicado
+  if (currentRoom.ronda_actual && !currentRoom.ronda_actual.isClosed) {
+    console.warn('advanceNextRoundInRoom: La ronda actual aún no ha cerrado. Se ignora avance duplicado.');
+    return;
+  }
+
   // 1. Chequear si todos los managers completaron sus 11 futbolistas
-  const activeBidders = room.participantes.filter(
-    (b) => b.squad.length < room.config.targetSquadSize
+  const activeBidders = currentRoom.participantes.filter(
+    (b) => b.squad.length < currentRoom.config.targetSquadSize
   );
 
   if (activeBidders.length === 0) {
@@ -504,20 +585,79 @@ export async function advanceNextRoundInRoom(
         historial: ['🏁 ¡Todos los managers completaron sus 11 fichajes! Partida finalizada.'],
         updated_at: new Date().toISOString(),
       })
-      .eq('codigo', room.codigo);
+      .eq('codigo', currentRoom.codigo);
+    return;
+  }
+
+  // 🌟 RESCATE DE BANCARROTA TOTAL:
+  // Si ningún manager activo tiene fondos para ofertar (< minIncrement),
+  // se completan automáticamente los cupos vacíos con canteranos / agentes libres (0 Fichas) y se finaliza!
+  const minInc = currentRoom.config.minIncrement || 5;
+  const hasAnySolventBidder = activeBidders.some((b) => b.budget >= minInc);
+
+  if (!hasAnySolventBidder) {
+    const usedIds: string[] = [];
+    currentRoom.participantes.forEach((p) => p.squad.forEach((item) => usedIds.push(item.playerId)));
+
+    let eligiblePool = getEligiblePlayers(allPlayers, usedIds, currentRoom.config.selectedDeck);
+    if (eligiblePool.length === 0) eligiblePool = allPlayers;
+
+    let poolIdx = 0;
+    const completedParticipants = currentRoom.participantes.map((p) => {
+      if (p.squad.length >= currentRoom.config.targetSquadSize) return p;
+
+      const needed = currentRoom.config.targetSquadSize - p.squad.length;
+      const emergencySignings: BoughtPlayer[] = [];
+
+      for (let i = 0; i < needed; i++) {
+        const freeAgent = eligiblePool[poolIdx % eligiblePool.length];
+        poolIdx++;
+        const matchingVer =
+          currentRoom.config.selectedDeck === 'mixto'
+            ? freeAgent.versions
+            : freeAgent.versions.filter((v) => v.decks.includes(currentRoom.config.selectedDeck));
+        const ver = matchingVer[0] || freeAgent.versions[0];
+
+        emergencySignings.push({
+          playerId: freeAgent.id,
+          playerName: freeAgent.name,
+          version: ver,
+          paidPrice: 0,
+          roundNumber: (currentRoom.ronda_actual?.roundNumber || 0) + 1 + i,
+        });
+      }
+
+      return {
+        ...p,
+        squad: [...p.squad, ...emergencySignings],
+      };
+    });
+
+    await supabase
+      .from('salas')
+      .update({
+        participantes: completedParticipants,
+        estado: 'finalizado',
+        historial: [
+          '🏁 ¡Partida finalizada! Los cupos restantes se completaron con Fichajes de Emergencia de la Cantera (0 Fichas). ¡El Bot DT ya está evaluando!',
+          ...currentRoom.historial.slice(0, 10),
+        ],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('codigo', currentRoom.codigo);
     return;
   }
 
   // 2. Extraer jugadores ya subastados
   const usedIds: string[] = [];
-  room.participantes.forEach((p) => {
+  currentRoom.participantes.forEach((p) => {
     p.squad.forEach((item) => usedIds.push(item.playerId));
   });
-  if (room.ronda_actual) {
-    usedIds.push(room.ronda_actual.player.id);
+  if (currentRoom.ronda_actual) {
+    usedIds.push(currentRoom.ronda_actual.player.id);
   }
 
-  const eligible = getEligiblePlayers(allPlayers, usedIds, room.config.selectedDeck);
+  const eligible = getEligiblePlayers(allPlayers, usedIds, currentRoom.config.selectedDeck);
   if (eligible.length === 0) {
     await supabase
       .from('salas')
@@ -526,24 +666,24 @@ export async function advanceNextRoundInRoom(
         historial: ['🏁 ¡Se agotó el mazo de cartas temático! Partida finalizada.'],
         updated_at: new Date().toISOString(),
       })
-      .eq('codigo', room.codigo);
+      .eq('codigo', currentRoom.codigo);
     return;
   }
 
   const randomPlayer = eligible[Math.floor(Math.random() * eligible.length)];
   const matchingVersions =
-    room.config.selectedDeck === 'mixto'
+    currentRoom.config.selectedDeck === 'mixto'
       ? randomPlayer.versions
-      : randomPlayer.versions.filter((v) => v.decks.includes(room.config.selectedDeck));
+      : randomPlayer.versions.filter((v) => v.decks.includes(currentRoom.config.selectedDeck));
   const chosenVersion = matchingVersions[Math.floor(Math.random() * matchingVersions.length)] || randomPlayer.versions[0];
 
-  const nextRoundNumber = (room.ronda_actual?.roundNumber || 0) + 1;
+  const nextRoundNumber = (currentRoom.ronda_actual?.roundNumber || 0) + 1;
 
   const nextRound: RoomRoundState = {
     roundNumber: nextRoundNumber,
     player: randomPlayer,
     version: chosenVersion,
-    highestBid: room.config.minIncrement,
+    highestBid: 0,
     highestBidderId: null,
     currentTurnBuyerIndex: 0,
     consecutivePasses: 0,
@@ -559,11 +699,23 @@ export async function advanceNextRoundInRoom(
       ronda_actual: nextRound,
       historial: [
         `⭐ Ronda ${nextRoundNumber}: Nueva silueta en el estrado (Tier ${chosenVersion.tier} • ${chosenVersion.evento}).`,
-        ...room.historial.slice(0, 15),
+        ...currentRoom.historial.slice(0, 15),
       ],
       updated_at: new Date().toISOString(),
     })
-    .eq('codigo', room.codigo);
+    .eq('codigo', currentRoom.codigo);
+}
+
+/**
+ * Permite al Host saltar el turno de un participante que se haya quedado AFK o desconectado
+ */
+export async function skipTurnByHost(
+  codigo: string,
+  participantIdToSkip: string
+): Promise<void> {
+  const room = await getRoom(codigo);
+  if (!room || !room.ronda_actual || room.ronda_actual.isClosed) return;
+  await passTurnInRoom(room, participantIdToSkip);
 }
 
 /**

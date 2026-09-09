@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   RoomState,
   RoomParticipant,
@@ -8,6 +8,7 @@ import {
   passTurnInRoom,
   buyClueInRoom,
   advanceNextRoundInRoom,
+  skipTurnByHost,
 } from '../services/realtimeRoom';
 import { Player } from '../types';
 import { SilhouetteCard } from './SilhouetteCard';
@@ -34,6 +35,7 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [autoAdvanceTimer, setAutoAdvanceTimer] = useState<number | null>(null);
+  const autoAdvanceIntervalRef = useRef<any>(null);
 
   // Mantener al participante actualizado con la versión más reciente de la sala
   const currentParticipant = useMemo(() => {
@@ -59,13 +61,21 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
 
   // 2. Lógica de cuenta regresiva automática para avanzar de ronda cuando se revela una carta
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
+    if (autoAdvanceIntervalRef.current) {
+      clearInterval(autoAdvanceIntervalRef.current);
+      autoAdvanceIntervalRef.current = null;
+    }
+
     if (room.estado === 'subastando' && room.ronda_actual?.isClosed && isHost) {
       setAutoAdvanceTimer(5);
-      const interval = setInterval(() => {
+      autoAdvanceIntervalRef.current = setInterval(() => {
         setAutoAdvanceTimer((prev) => {
-          if (prev === null || prev <= 1) {
-            clearInterval(interval);
+          if (prev === null) return null; // Cancelado manualmente: no avanzar
+          if (prev <= 1) {
+            if (autoAdvanceIntervalRef.current) {
+              clearInterval(autoAdvanceIntervalRef.current);
+              autoAdvanceIntervalRef.current = null;
+            }
             // Avanzar automáticamente
             advanceNextRoundInRoom(room, allPlayers).catch(console.error);
             return null;
@@ -73,13 +83,15 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
           return prev - 1;
         });
       }, 1000);
-      timer = interval as any;
     } else {
       setAutoAdvanceTimer(null);
     }
 
     return () => {
-      if (timer) clearInterval(timer);
+      if (autoAdvanceIntervalRef.current) {
+        clearInterval(autoAdvanceIntervalRef.current);
+        autoAdvanceIntervalRef.current = null;
+      }
     };
   }, [room.ronda_actual?.isClosed, room.estado, isHost]);
 
@@ -167,9 +179,28 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
   // Avanzar a la siguiente ronda manualmente (Host)
   const handleNextRoundManual = async () => {
     if (isProcessing) return;
+    if (autoAdvanceIntervalRef.current) {
+      clearInterval(autoAdvanceIntervalRef.current);
+      autoAdvanceIntervalRef.current = null;
+    }
+    setAutoAdvanceTimer(null);
     setIsProcessing(true);
     try {
       await advanceNextRoundInRoom(room, allPlayers);
+    } catch (e: any) {
+      console.error(e);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  // Saltar turno de un participante (Host Override)
+  const handleSkipTurnHost = async (participantId: string) => {
+    if (isProcessing) return;
+    setIsProcessing(true);
+    triggerHaptic(30);
+    try {
+      await skipTurnByHost(room.codigo, participantId);
     } catch (e: any) {
       console.error(e);
     } finally {
@@ -366,7 +397,9 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
     (b) => b.squad.length < room.config.targetSquadSize
   );
 
-  const currentTurnBuyer = activeBidders[round.currentTurnBuyerIndex];
+  const safeTurnIndex =
+    activeBidders.length > 0 ? round.currentTurnBuyerIndex % activeBidders.length : 0;
+  const currentTurnBuyer = activeBidders[safeTurnIndex];
   const isMyTurn = currentTurnBuyer?.id === currentParticipant.id && !round.isClosed;
   const isLeader = round.highestBidderId === currentParticipant.id;
   const highestBidder = room.participantes.find((p) => p.id === round.highestBidderId);
@@ -635,44 +668,65 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
           ) : isMyTurn ? (
             /* SI ES MI TURNO DE PUJAR */
             <div className="space-y-2.5 animate-fade-in">
-              {/* Botones de incremento táctil */}
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  onClick={() => handlePlaceBid(minRequiredBid)}
-                  disabled={minRequiredBid > currentParticipant.budget || isProcessing}
-                  className="py-3.5 rounded-2xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs uppercase font-display shadow-md flex flex-col items-center justify-center gap-0.5 disabled:opacity-30 cursor-pointer"
-                >
-                  <span className="text-[9px] opacity-80">MÍNIMA</span>
-                  <div className="flex items-center gap-1">
-                    <StarTokenIcon size={12} />
-                    <span>{minRequiredBid}</span>
+              {/* Si el manager no tiene saldo para la puja mínima normal pero nadie ha ofertado aún */}
+              {currentParticipant.budget < minRequiredBid && round.highestBid === 0 ? (
+                <div className="space-y-2">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center space-y-1">
+                    <p className="text-xs font-black text-amber-500 uppercase tracking-wide">
+                      ⚠️ Presupuesto insuficiente ({currentParticipant.budget} Fichas)
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Puedes solicitar este futbolista a coste cero como Fichaje de Cantera / Agente Libre. Si ningún otro manager oferta fichas por él, te lo llevarás gratis.
+                    </p>
                   </div>
-                </button>
+                  <button
+                    onClick={() => handlePlaceBid(0)}
+                    disabled={isProcessing}
+                    className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 active:scale-98 text-white font-black text-xs uppercase tracking-wider font-display shadow-lg shadow-emerald-500/30 transition-all cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <span>🚨 SOLICITAR RESCATE DE CANTERA (0 FICHAS)</span>
+                  </button>
+                </div>
+              ) : (
+                /* Botones de incremento táctil regulares */
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => handlePlaceBid(minRequiredBid)}
+                    disabled={minRequiredBid > currentParticipant.budget || isProcessing}
+                    className="py-3.5 rounded-2xl bg-amber-400 hover:bg-amber-300 active:scale-95 text-slate-950 font-black text-xs uppercase font-display shadow-md flex flex-col items-center justify-center gap-0.5 disabled:opacity-30 cursor-pointer"
+                  >
+                    <span className="text-[9px] opacity-80">MÍNIMA</span>
+                    <div className="flex items-center gap-1">
+                      <StarTokenIcon size={12} />
+                      <span>{minRequiredBid}</span>
+                    </div>
+                  </button>
 
-                <button
-                  onClick={() => handlePlaceBid(minRequiredBid + 5)}
-                  disabled={minRequiredBid + 5 > currentParticipant.budget || isProcessing}
-                  className="py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-yellow-300 font-black text-xs uppercase font-display shadow-md flex flex-col items-center justify-center gap-0.5 disabled:opacity-30 cursor-pointer"
-                >
-                  <span className="text-[9px] text-slate-400">+5 FICHAS</span>
-                  <div className="flex items-center gap-1">
-                    <StarTokenIcon size={12} />
-                    <span>{minRequiredBid + 5}</span>
-                  </div>
-                </button>
+                  <button
+                    onClick={() => handlePlaceBid(minRequiredBid + 5)}
+                    disabled={minRequiredBid + 5 > currentParticipant.budget || isProcessing}
+                    className="py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-yellow-300 font-black text-xs uppercase font-display shadow-md flex flex-col items-center justify-center gap-0.5 disabled:opacity-30 cursor-pointer"
+                  >
+                    <span className="text-[9px] text-slate-400">+5 FICHAS</span>
+                    <div className="flex items-center gap-1">
+                      <StarTokenIcon size={12} />
+                      <span>{minRequiredBid + 5}</span>
+                    </div>
+                  </button>
 
-                <button
-                  onClick={() => handlePlaceBid(minRequiredBid + 15)}
-                  disabled={minRequiredBid + 15 > currentParticipant.budget || isProcessing}
-                  className="py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-yellow-300 font-black text-xs uppercase font-display shadow-md flex flex-col items-center justify-center gap-0.5 disabled:opacity-30 cursor-pointer"
-                >
-                  <span className="text-[9px] text-slate-400">+15 FICHAS</span>
-                  <div className="flex items-center gap-1">
-                    <StarTokenIcon size={12} />
-                    <span>{minRequiredBid + 15}</span>
-                  </div>
-                </button>
-              </div>
+                  <button
+                    onClick={() => handlePlaceBid(minRequiredBid + 15)}
+                    disabled={minRequiredBid + 15 > currentParticipant.budget || isProcessing}
+                    className="py-3.5 rounded-2xl bg-slate-900 hover:bg-slate-800 active:scale-95 text-yellow-300 font-black text-xs uppercase font-display shadow-md flex flex-col items-center justify-center gap-0.5 disabled:opacity-30 cursor-pointer"
+                  >
+                    <span className="text-[9px] text-slate-400">+15 FICHAS</span>
+                    <div className="flex items-center gap-1">
+                      <StarTokenIcon size={12} />
+                      <span>{minRequiredBid + 15}</span>
+                    </div>
+                  </button>
+                </div>
+              )}
 
               {/* Botón Pasar Turno */}
               <button
@@ -712,8 +766,21 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
             </div>
           ) : (
             /* SI NO ES MI TURNO */
-            <div className="text-center py-4 px-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 italic">
-              Turno de <strong className="text-slate-800">{currentTurnBuyer?.name}</strong>. Tus botones se activarán cuando te toque ofertar.
+            <div className="space-y-2.5">
+              <div className="text-center py-4 px-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 italic">
+                Turno de <strong className="text-slate-800">{currentTurnBuyer?.name}</strong>. Tus botones se activarán cuando te toque ofertar.
+              </div>
+              {/* Botón de anfitrión para saltar turno si alguien se desconecta o tarda */}
+              {isHost && currentTurnBuyer && (
+                <button
+                  onClick={() => handleSkipTurnHost(currentTurnBuyer.id)}
+                  disabled={isProcessing}
+                  className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-300 hover:text-white text-xs font-mono border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                  title="Salta el turno del jugador actual si está inactivo o desconectado"
+                >
+                  <span>⏭️ Saltar Turno de {currentTurnBuyer.name} (Control de Host)</span>
+                </button>
+              )}
             </div>
           )}
         </div>

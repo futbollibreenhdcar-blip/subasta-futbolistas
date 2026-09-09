@@ -96,7 +96,15 @@ const HISTORICAL_DATABASE: Record<string, HistoricalProfile> = {
   'Philipp Lahm': { ballonDor: 0, worldCups: 1, championsLeague: 1, legendTier: 'LEYENDA_MAXIMA', signatureTrait: 'Capitán campeón de Brasil 2014' },
 };
 
-function getPlayerHistoricalProfile(name: string): HistoricalProfile {
+function getPlayerHistoricalProfile(name?: string): HistoricalProfile {
+  if (!name || typeof name !== 'string') {
+    return {
+      ballonDor: 0,
+      worldCups: 0,
+      championsLeague: 0,
+      legendTier: 'FIGURA',
+    };
+  }
   // Búsqueda directa o parcial
   if (HISTORICAL_DATABASE[name]) return HISTORICAL_DATABASE[name];
   const lower = name.toLowerCase();

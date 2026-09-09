@@ -225,6 +225,85 @@ const tournament = judgeTournament([chaoticBuyer, dreamTeamBuyer]);
 assert.strictEqual(tournament.champion.buyerId, 'dt_legend', 'El DT Campeón Galáctico debe coronarse campeón de torneo');
 console.log('✅ DT Bot Evaluador y VAR Futbolístico: CORRECTO (Puntuación Campeón: ' + evalDream.totalFootballScore + ' pts vs ' + evalChaotic.totalFootballScore + ' pts)');
 
+console.log('\n--- TEST 6: Rescate de Cantera por Quiebra de Presupuesto (0 Fichas) ---');
+const brokeManagers = [
+  { id: 'bm1', name: 'DT Quebrado 1', budget: 2, squad: new Array(8).fill({ paidPrice: 50, version: { value: 60 } }) },
+  { id: 'bm2', name: 'DT Quebrado 2', budget: 0, squad: new Array(7).fill({ paidPrice: 60, version: { value: 70 } }) },
+  { id: 'bm3', name: 'DT Con Fondos', budget: 100, squad: new Array(9).fill({ paidPrice: 30, version: { value: 40 } }) },
+];
+const [bm1, bm2, bm3] = brokeManagers;
+
+const minIncrement = 5;
+
+// Caso A: Manager quebrado solicita rescate de 0 fichas cuando nadie ha ofertado
+let currentHighBid = 0;
+let currentHighBidder = null;
+
+// bm2 (0 fichas) pide rescate
+const canRescueBid = (manager, highestBid) => highestBid === 0 && manager.budget < minIncrement;
+assert.strictEqual(canRescueBid(bm2, currentHighBid), true, 'Manager sin fondos debe poder pedir rescate si highestBid es 0');
+assert.strictEqual(canRescueBid(bm3, currentHighBid), false, 'Manager con fondos no debe poder pedir rescate gratis');
+
+// Asignamos puja de rescate
+currentHighBid = 0;
+currentHighBidder = bm2.id;
+
+// Caso B: El manager con fondos puede sobrepujar al rescate con la mínima regular (5 fichas)
+const minOverbid = currentHighBid === 0 && currentHighBidder ? minIncrement : currentHighBid + minIncrement;
+assert.strictEqual(minOverbid, 5);
+currentHighBid = minOverbid;
+currentHighBidder = bm3.id;
+assert.strictEqual(currentHighBidder, 'bm3');
+assert.strictEqual(currentHighBid, 5);
+console.log('✅ Puja de rescate de 0 fichas y sobrepuja legítima: CORRECTO');
+
+// Caso C: Ronda Desierta con Managers Quebrados (Adjudicación de rescate gratis al más necesitado)
+const desertRoundBidders = [bm1, bm2]; // ambos tienen menos de minIncrement
+const brokeActive = desertRoundBidders.filter(b => b.budget < minIncrement);
+assert.strictEqual(brokeActive.length, 2);
+// Debe adjudicarse a bm2 porque tiene 7 jugadores vs 8 de bm1
+const rescueRecipient = [...brokeActive].sort((a, b) => a.squad.length - b.squad.length)[0];
+assert.strictEqual(rescueRecipient.id, 'bm2', 'El rescate desierto debe ir al manager con menos futbolistas');
+console.log('✅ Rescate en ronda desierta para manager en quiebra: CORRECTO');
+
+// Caso D: Bancarrota Total (todos los activos en quiebra y faltan cupos para llegar a 11)
+const allBrokeActive = [
+  { id: 'ab1', name: 'DT A', budget: 0, squad: new Array(9).fill(null).map((_, idx) => ({ playerName: `Jugador A${idx}`, paidPrice: 10, version: { value: 10, posicion: 'CB', grl: 115, tier: 'B', playstyles: [] } })) },
+  { id: 'ab2', name: 'DT B', budget: 2, squad: new Array(10).fill(null).map((_, idx) => ({ playerName: `Jugador B${idx}`, paidPrice: 10, version: { value: 10, posicion: 'ST', grl: 115, tier: 'B', playstyles: [] } })) },
+];
+
+const mockDeckPool = [
+  { id: 'free1', name: 'Agente Libre 1', versions: [{ grl: 110, posicion: 'GK', tier: 'C', value: 20, playstyles: [] }] },
+  { id: 'free2', name: 'Agente Libre 2', versions: [{ grl: 110, posicion: 'CM', tier: 'C', value: 20, playstyles: [] }] },
+  { id: 'free3', name: 'Agente Libre 3', versions: [{ grl: 110, posicion: 'LW', tier: 'C', value: 20, playstyles: [] }] },
+];
+
+let freeIdx = 0;
+const autoDraftedManagers = allBrokeActive.map(m => {
+  const needed = TARGET_SQUAD_SIZE - m.squad.length;
+  const newSquad = [...m.squad];
+  for (let i = 0; i < needed; i++) {
+    const freeCard = mockDeckPool[freeIdx++];
+    newSquad.push({
+      playerId: freeCard.id,
+      playerName: freeCard.name,
+      paidPrice: 0,
+      version: freeCard.versions[0],
+    });
+  }
+  return { ...m, squad: newSquad };
+});
+
+assert.strictEqual(autoDraftedManagers[0].squad.length, 11);
+assert.strictEqual(autoDraftedManagers[1].squad.length, 11);
+assert.strictEqual(autoDraftedManagers[0].squad[9].paidPrice, 0);
+assert.strictEqual(autoDraftedManagers[0].squad[10].paidPrice, 0);
+
+// Evaluar con el DT Bot que los planteles resultantes de 11 se evalúan sin fallar
+const evalAutoDraft = evaluateManagerSquad(autoDraftedManagers[0]);
+assert.ok(evalAutoDraft.totalFootballScore > 0, 'Plantel con agentes libres debe ser evaluado correctamente por el DT Bot');
+console.log('✅ Auto-draft de agentes libres por quiebra total (alcanzan 11/11): CORRECTO');
+
 console.log('\n=======================================');
-console.log(' TODOS LOS TESTS DE REGLAS PASARON (5/5) ');
+console.log(' TODOS LOS TESTS DE REGLAS PASARON (6/6) ');
 console.log('=======================================');

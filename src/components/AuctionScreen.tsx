@@ -225,6 +225,33 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
     );
   };
 
+  const handleRescueBid = () => {
+    if (roundState.isClosed || !activeBuyer) return;
+    setRoundHistory((prev) => [
+      `🚨 ${activeBuyer.name} solicitó Rescate de Cantera por $0 (Fichas agotadas).`,
+      ...prev.slice(0, 8),
+    ]);
+
+    if (activeBidders.length <= 1) {
+      closeAuction(activeBuyer.id, 0);
+      return;
+    }
+
+    const nextIdx = getNextBuyerIndex(roundState.currentTurnBuyerIndex);
+    setStepperBid(config.minIncrement);
+    setRoundState((prev) =>
+      prev
+        ? {
+            ...prev,
+            highestBid: 0,
+            highestBidderId: activeBuyer.id,
+            consecutivePasses: 0,
+            currentTurnBuyerIndex: nextIdx,
+          }
+        : null
+    );
+  };
+
   const handlePass = () => {
     if (roundState.isClosed || !activeBuyer) return;
 
@@ -236,6 +263,19 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
 
     if (roundState.highestBidderId === null) {
       if (newPasses >= activeBidders.length) {
+        // RESCATE EN RONDA DESIERTA: Si nadie pujó y algún manager está en quiebra (< minIncrement),
+        // se le adjudica al manager en quiebra con menos jugadores a coste 0 en vez de perder la carta.
+        const brokeBidders = activeBidders.filter((b) => b.budget < config.minIncrement);
+        if (brokeBidders.length > 0) {
+          const recipient = [...brokeBidders].sort((a, b) => a.squad.length - b.squad.length)[0];
+          setRoundHistory((prev) => [
+            `🚨 RESCATE DE CANTERA: Ronda desierta adjudicada a ${recipient.name} por $0 fichas para evitar quiebra.`,
+            ...prev.slice(0, 8),
+          ]);
+          closeAuction(recipient.id, 0);
+          return;
+        }
+
         setRoundHistory((prev) => [
           '❌ Ronda desierta. Ningún manager ofertó. Silueta descartada.',
           ...prev,
@@ -367,6 +407,44 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
     const updatedActiveBidders = getActiveBidders(buyers);
     if (updatedActiveBidders.length === 0) {
       onGameOver(buyers, '¡Todos los managers han completado sus planteles objetivo!');
+      return;
+    }
+
+    // RESCATE TOTAL: Si todos los managers activos están en quiebra (< minIncrement)
+    if (updatedActiveBidders.every((b) => b.budget < config.minIncrement)) {
+      const eligibleRemaining = getEligiblePlayers(usedPlayerIds);
+      let availableIdx = 0;
+      let currentUsed = [...usedPlayerIds];
+      const finalBuyers = buyers.map((buyer) => {
+        if (buyer.squad.length >= config.targetSquadSize) return buyer;
+        const needed = config.targetSquadSize - buyer.squad.length;
+        const newSquad = [...buyer.squad];
+        for (let i = 0; i < needed; i++) {
+          const freePlayer = eligibleRemaining[availableIdx] || eligibleRemaining[0];
+          if (freePlayer) {
+            availableIdx++;
+            currentUsed.push(freePlayer.id);
+            const matchingVersions =
+              config.selectedDeck === 'mixto'
+                ? freePlayer.versions
+                : freePlayer.versions.filter((v) => v.decks.includes(config.selectedDeck));
+            const freeVer = matchingVersions.length > 0 ? matchingVersions[0] : freePlayer.versions[0];
+            newSquad.push({
+              playerId: freePlayer.id,
+              playerName: freePlayer.name,
+              version: freeVer,
+              paidPrice: 0,
+              roundNumber: roundState.roundNumber,
+            });
+          }
+        }
+        return { ...buyer, squad: newSquad };
+      });
+      setBuyers(finalBuyers);
+      onGameOver(
+        finalBuyers,
+        '¡Fin de la subasta! Los cupos restantes fueron completados mediante Fichajes de Cantera (0 Fichas).'
+      );
       return;
     }
 
@@ -575,79 +653,112 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
                 </div>
               )}
 
-              {/* CHIPS RÁPIDOS DE PUJA (+5, +10, +25, +50) */}
-              <div className="flex items-center justify-center gap-2">
-                {[config.minIncrement, 10, 25, 50]
-                  .filter((v, idx, arr) => arr.indexOf(v) === idx)
-                  .map((delta) => {
-                    const targetBid = stepperBid + delta;
-                    const canAfford = activeBuyer && targetBid <= activeBuyer.budget;
-                    return (
-                      <button
-                        key={delta}
-                        type="button"
-                        onClick={() => handleStepperChange(delta)}
-                        disabled={!canAfford}
-                        className="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-800 font-mono text-[11px] font-black border border-slate-200 transition-colors"
-                      >
-                        +{delta}
-                      </button>
-                    );
-                  })}
-              </div>
-
-              {/* STEPPER TÁCTIL PRINCIPAL */}
-              <div className="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-2xl p-1.5 shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => handleStepperChange(-config.minIncrement)}
-                  disabled={stepperBid <= minRequiredBid}
-                  className="w-13 h-12 rounded-xl bg-white hover:bg-slate-50 active:scale-95 disabled:opacity-25 text-slate-900 font-black text-2xl flex items-center justify-center border border-slate-200 shadow-xs transition-all"
-                >
-                  −
-                </button>
-
-                <div className="text-center flex-1">
-                  <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">
-                    OFERTA A PUJAR
-                  </span>
-                  <span className="text-2xl font-black text-amber-600 font-mono">
-                    ${stepperBid}
-                  </span>
+              {/* Si el manager no tiene saldo para la puja mínima normal pero nadie ha ofertado aún */}
+              {activeBuyer && activeBuyer.budget < minRequiredBid && roundState.highestBid === 0 ? (
+                <div className="space-y-2.5">
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-center space-y-1">
+                    <p className="text-xs font-black text-amber-600 uppercase tracking-wide">
+                      ⚠️ Presupuesto insuficiente (${activeBuyer.budget})
+                    </p>
+                    <p className="text-[11px] text-slate-500">
+                      Puedes solicitar este futbolista a coste cero como Fichaje de Cantera / Agente Libre. Si ningún manager oferta fichas por él, te lo llevarás gratis.
+                    </p>
+                  </div>
+                  <div className="flex gap-2.5">
+                    <button
+                      type="button"
+                      onClick={handlePass}
+                      className="flex-1 h-13 py-3 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 active:scale-[0.98] border border-rose-200 text-rose-700 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs font-display cursor-pointer"
+                    >
+                      <span>PASAR</span>
+                      <span className="text-[10px] text-rose-500 font-mono">({roundState.consecutivePasses}p)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRescueBid}
+                      className="flex-2 h-13 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-600 hover:brightness-110 active:scale-[0.98] text-white font-black text-xs uppercase tracking-wider shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1 transition-all font-display cursor-pointer"
+                    >
+                      <span>🚨 RESCATE (0 FICHAS)</span>
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  {/* CHIPS RÁPIDOS DE PUJA (+5, +10, +25, +50) */}
+                  <div className="flex items-center justify-center gap-2">
+                    {[config.minIncrement, 10, 25, 50]
+                      .filter((v, idx, arr) => arr.indexOf(v) === idx)
+                      .map((delta) => {
+                        const targetBid = stepperBid + delta;
+                        const canAfford = activeBuyer && targetBid <= activeBuyer.budget;
+                        return (
+                          <button
+                            key={delta}
+                            type="button"
+                            onClick={() => handleStepperChange(delta)}
+                            disabled={!canAfford}
+                            className="flex-1 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 disabled:opacity-30 text-slate-800 font-mono text-[11px] font-black border border-slate-200 transition-colors"
+                          >
+                            +{delta}
+                          </button>
+                        );
+                      })}
+                  </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleStepperChange(config.minIncrement)}
-                  disabled={Boolean(activeBuyer && stepperBid + config.minIncrement > activeBuyer.budget)}
-                  className="w-13 h-12 rounded-xl bg-white hover:bg-slate-50 active:scale-95 disabled:opacity-25 text-slate-900 font-black text-2xl flex items-center justify-center border border-slate-200 shadow-xs transition-all"
-                >
-                  +
-                </button>
-              </div>
+                  {/* STEPPER TÁCTIL PRINCIPAL */}
+                  <div className="flex items-center justify-between bg-slate-100 border border-slate-200 rounded-2xl p-1.5 shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => handleStepperChange(-config.minIncrement)}
+                      disabled={stepperBid <= minRequiredBid}
+                      className="w-13 h-12 rounded-xl bg-white hover:bg-slate-50 active:scale-95 disabled:opacity-25 text-slate-900 font-black text-2xl flex items-center justify-center border border-slate-200 shadow-xs transition-all"
+                    >
+                      −
+                    </button>
 
-              {/* ACCIONES PRINCIPALES (PASAR / PUJAR) */}
-              <div className="flex gap-2.5">
-                {/* Botón Pasar */}
-                <button
-                  type="button"
-                  onClick={handlePass}
-                  className="flex-1 h-13 py-3 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 active:scale-[0.98] border border-rose-200 text-rose-700 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs font-display"
-                >
-                  <span>PASAR</span>
-                  <span className="text-[10px] text-rose-500 font-mono">({roundState.consecutivePasses}p)</span>
-                </button>
+                    <div className="text-center flex-1">
+                      <span className="text-[10px] uppercase tracking-wider text-slate-500 font-bold block">
+                        OFERTA A PUJAR
+                      </span>
+                      <span className="text-2xl font-black text-amber-600 font-mono">
+                        ${stepperBid}
+                      </span>
+                    </div>
 
-                {/* Botón Subir Puja */}
-                <button
-                  type="button"
-                  onClick={handleConfirmBid}
-                  disabled={!activeBuyer || activeBuyer.budget < stepperBid}
-                  className="flex-1 h-13 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed text-white font-black text-sm uppercase tracking-wider shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1 transition-all font-display"
-                >
-                  <span>OFERTAR ${stepperBid}</span>
-                </button>
-              </div>
+                    <button
+                      type="button"
+                      onClick={() => handleStepperChange(config.minIncrement)}
+                      disabled={Boolean(activeBuyer && stepperBid + config.minIncrement > activeBuyer.budget)}
+                      className="w-13 h-12 rounded-xl bg-white hover:bg-slate-50 active:scale-95 disabled:opacity-25 text-slate-900 font-black text-2xl flex items-center justify-center border border-slate-200 shadow-xs transition-all"
+                    >
+                      +
+                    </button>
+                  </div>
+
+                  {/* ACCIONES PRINCIPALES (PASAR / PUJAR) */}
+                  <div className="flex gap-2.5">
+                    {/* Botón Pasar */}
+                    <button
+                      type="button"
+                      onClick={handlePass}
+                      className="flex-1 h-13 py-3 px-4 rounded-2xl bg-rose-50 hover:bg-rose-100 active:scale-[0.98] border border-rose-200 text-rose-700 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-xs font-display"
+                    >
+                      <span>PASAR</span>
+                      <span className="text-[10px] text-rose-500 font-mono">({roundState.consecutivePasses}p)</span>
+                    </button>
+
+                    {/* Botón Subir Puja */}
+                    <button
+                      type="button"
+                      onClick={handleConfirmBid}
+                      disabled={!activeBuyer || activeBuyer.budget < stepperBid}
+                      className="flex-1 h-13 py-3 px-4 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 active:scale-[0.98] disabled:opacity-30 disabled:cursor-not-allowed text-white font-black text-sm uppercase tracking-wider shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1 transition-all font-display"
+                    >
+                      <span>OFERTAR ${stepperBid}</span>
+                    </button>
+                  </div>
+                </>
+              )}
             </>
           ) : (
             /* Botón Siguiente Ronda */
