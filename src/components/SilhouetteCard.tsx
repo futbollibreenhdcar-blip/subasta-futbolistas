@@ -1,5 +1,6 @@
 import React from 'react';
 import { Tier } from '../types';
+import { StarTokenIcon } from './StarTokenIcon';
 
 interface SilhouetteCardProps {
   imageDataUrl: string;
@@ -202,13 +203,19 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
           <div className="grid grid-cols-2 gap-2.5 font-mono">
             <div className="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-xs">
               <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">VALOR REAL</span>
-              <span className="text-xl font-black text-slate-900">${value}</span>
+              <span className="text-xl font-black text-slate-900 flex items-center justify-center gap-1">
+                <StarTokenIcon size={18} />
+                {value}
+              </span>
             </div>
 
             {paidPrice !== undefined && (
               <div className="bg-white border border-slate-200 rounded-2xl p-2.5 text-center shadow-xs">
                 <span className="text-[10px] text-slate-500 uppercase font-bold tracking-wider block">PRECIO PAGADO</span>
-                <span className="text-xl font-black text-amber-600">${paidPrice}</span>
+                <span className="text-xl font-black text-amber-600 flex items-center justify-center gap-1">
+                  <StarTokenIcon size={18} />
+                  {paidPrice}
+                </span>
               </div>
             )}
           </div>
@@ -217,16 +224,30 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
           {paidPrice !== undefined && value !== undefined && (
             <div>
               {paidPrice > value ? (
-                <div className="px-3.5 py-2 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-xs font-bold text-center shadow-xs">
-                  ⚠️ ¡SOBREPAGADO! Pagaste <span className="font-black text-rose-950">${paidPrice}</span> por un jugador de <span className="font-black text-rose-950">${value}</span> (Pérdida: -${paidPrice - value})
+                <div className="px-3.5 py-2 rounded-2xl bg-rose-50 border border-rose-300 text-rose-900 text-xs font-bold text-center shadow-xs flex items-center justify-center gap-1">
+                  <span>⚠️ ¡SOBREPAGADO! Pagaste</span>
+                  <StarTokenIcon size={12} />
+                  <span className="font-black text-rose-950">{paidPrice}</span>
+                  <span>por un jugador de</span>
+                  <StarTokenIcon size={12} />
+                  <span className="font-black text-rose-950">{value}</span>
+                  <span>(Pérdida: -{paidPrice - value})</span>
                 </div>
               ) : paidPrice < value ? (
-                <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold text-center shadow-xs">
-                  🎉 ¡GANGA TOTAL! Pagaste <span className="font-black text-emerald-950">${paidPrice}</span> por un jugador de <span className="font-black text-emerald-950">${value}</span> (Ahorro: +${value - paidPrice})
+                <div className="px-3.5 py-2 rounded-2xl bg-emerald-50 border border-emerald-300 text-emerald-900 text-xs font-bold text-center shadow-xs flex items-center justify-center gap-1">
+                  <span>🎉 ¡GANGA TOTAL! Pagaste</span>
+                  <StarTokenIcon size={12} />
+                  <span className="font-black text-emerald-950">{paidPrice}</span>
+                  <span>por un jugador de</span>
+                  <StarTokenIcon size={12} />
+                  <span className="font-black text-emerald-950">{value}</span>
+                  <span>(Ahorro: +{value - paidPrice})</span>
                 </div>
               ) : (
-                <div className="px-3.5 py-2 rounded-2xl bg-slate-100 border border-slate-300 text-slate-800 text-xs font-bold text-center shadow-xs">
-                  ⚖️ ¡PRECIO EXACTO! Fichaje por ${paidPrice}
+                <div className="px-3.5 py-2 rounded-2xl bg-slate-100 border border-slate-300 text-slate-800 text-xs font-bold text-center shadow-xs flex items-center justify-center gap-1">
+                  <span>⚖️ ¡PRECIO EXACTO! Fichaje por</span>
+                  <StarTokenIcon size={12} />
+                  <span>{paidPrice} Fichas</span>
                 </div>
               )}
 

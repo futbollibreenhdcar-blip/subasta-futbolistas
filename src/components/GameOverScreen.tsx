@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Buyer, BoughtPlayer } from '../types';
 import { FCMobileThumbnail } from './FCMobileThumbnail';
+import { SquadPitchView } from './SquadPitchView';
+import { StarTokenIcon } from './StarTokenIcon';
 
 interface GameOverScreenProps {
   buyers: Buyer[];
@@ -15,6 +17,9 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
   onPlayAgain,
   onGoToManagement,
 }) => {
+  const [viewMode, setViewMode] = useState<'pitch' | 'list'>('pitch');
+  const [activePitchManagerId, setActivePitchManagerId] = useState<string>(buyers[0]?.id || '');
+
   const buyerStats = buyers.map((b) => {
     const totalSpent = b.initialBudget - b.budget;
     const totalValue = b.squad.reduce((sum, p) => sum + p.version.value, 0);
@@ -103,11 +108,17 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
                 <div className="grid grid-cols-3 gap-2.5 p-3 rounded-2xl bg-white border border-amber-200/80 text-center text-xs font-mono shadow-xs">
                   <div>
                     <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Gastado</span>
-                    <span className="font-black text-slate-900 text-sm">${bestManager.totalSpent}</span>
+                    <span className="font-black text-slate-900 text-sm flex items-center justify-center gap-0.5">
+                      <StarTokenIcon size={12} />
+                      {bestManager.totalSpent}
+                    </span>
                   </div>
                   <div>
                     <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Valor Real</span>
-                    <span className="font-black text-emerald-700 text-sm">${bestManager.totalValue}</span>
+                    <span className="font-black text-emerald-700 text-sm flex items-center justify-center gap-0.5">
+                      <StarTokenIcon size={12} />
+                      {bestManager.totalValue}
+                    </span>
                   </div>
                   <div>
                     <span className="text-[9px] text-slate-500 block uppercase font-bold tracking-wider">Fichados</span>
@@ -144,8 +155,8 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
                   <span className="text-2xl font-black text-slate-900 uppercase font-display">
                     {(globalWorstBuyer as Buyer).name}
                   </span>
-                  <span className="text-2xl font-black text-rose-600 font-mono">
-                    -${globalMaxOverpay}
+                  <span className="text-2xl font-black text-rose-600 font-mono flex items-center gap-1">
+                    -<StarTokenIcon size={16} />{globalMaxOverpay}
                   </span>
                 </div>
 
@@ -166,8 +177,8 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
                     <p className="text-[11px] text-slate-500 truncate">
                       {(globalWorstPurchase as BoughtPlayer).version.versionTag}
                     </p>
-                    <div className="mt-1 text-[11px] font-mono">
-                      Pagó <strong className="text-rose-600 font-black">${(globalWorstPurchase as BoughtPlayer).paidPrice}</strong> por algo de <strong className="text-emerald-700 font-black">${(globalWorstPurchase as BoughtPlayer).version.value}</strong>
+                    <div className="mt-1 text-[11px] font-mono flex items-center gap-1">
+                      Pagó <StarTokenIcon size={12} /><strong className="text-rose-600 font-black">{(globalWorstPurchase as BoughtPlayer).paidPrice}</strong> por algo de <StarTokenIcon size={12} /><strong className="text-emerald-700 font-black">{(globalWorstPurchase as BoughtPlayer).version.value}</strong>
                     </div>
                   </div>
                 </div>
@@ -188,58 +199,135 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
 
       {/* TABLA DE MANAGERS Y PLANTELES */}
       <div className="space-y-4">
-        <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider font-display">
-          PLANTELES Y FICHAJES COMPLETOS
-        </h3>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider font-display flex items-center gap-2">
+            <span>PLANTELES Y ESCUADRONES</span>
+            <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-mono">
+              FUT 11
+            </span>
+          </h3>
 
-        <div className="space-y-4">
-          {rankedByRatio.map((stat, rankIdx) => (
-            <div
-              key={stat.buyer.id}
-              className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm"
+          {/* Selector de Modo de Vista */}
+          <div className="inline-flex p-1 rounded-2xl bg-slate-100 border border-slate-200 shadow-inner text-xs font-display font-black">
+            <button
+              onClick={() => setViewMode('pitch')}
+              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                viewMode === 'pitch'
+                  ? 'bg-gradient-to-r from-emerald-600 to-green-600 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
             >
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div
-                    className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm font-display shrink-0 ${
-                      rankIdx === 0
-                        ? 'bg-amber-400 text-slate-950 shadow-xs'
-                        : rankIdx === 1
-                        ? 'bg-slate-200 text-slate-800'
-                        : rankIdx === 2
-                        ? 'bg-amber-100 text-amber-900'
-                        : 'bg-slate-100 text-slate-600'
+              <span>⚽</span>
+              <span>CANCHA FUT 11</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-4 py-2 rounded-xl transition-all flex items-center gap-1.5 ${
+                viewMode === 'list'
+                  ? 'bg-slate-900 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <span>📋</span>
+              <span>LISTA DETALLADA</span>
+            </button>
+          </div>
+        </div>
+
+        {/* VISTA 1: CANCHA TÁCTICA FUT 11 */}
+        {viewMode === 'pitch' ? (
+          <div className="space-y-4">
+            {/* Pestañas para elegir qué Manager inspeccionar en la cancha */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-thin">
+              {buyers.map((b, idx) => {
+                const isActive = (activePitchManagerId || buyers[0]?.id) === b.id;
+                return (
+                  <button
+                    key={b.id}
+                    onClick={() => setActivePitchManagerId(b.id)}
+                    className={`px-4 py-2.5 rounded-2xl font-display font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 shrink-0 border ${
+                      isActive
+                        ? 'bg-amber-400 text-slate-950 border-amber-500 shadow-md scale-105'
+                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                     }`}
                   >
-                    #{rankIdx + 1}
-                  </div>
-                  <div>
-                    <h4 className="text-lg font-black text-slate-900 uppercase font-display">{stat.buyer.name}</h4>
-                    <p className="text-xs text-slate-500">
-                      {stat.buyer.squad.length} futbolistas incorporados
-                    </p>
-                  </div>
-                </div>
+                    <span>#{idx + 1}</span>
+                    <span>{b.name}</span>
+                    <span className="text-[10px] font-mono opacity-80">
+                      ({b.squad.length}/11)
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
 
-                <div className="grid grid-cols-2 sm:flex gap-2 text-xs font-mono">
-                  <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Gastado</span>
-                    <span className="font-black text-amber-600">${stat.totalSpent}</span>
+            {/* Componente Cancha FUT */}
+            {(() => {
+              const activeManager = buyers.find((b) => b.id === (activePitchManagerId || buyers[0]?.id)) || buyers[0];
+              return activeManager ? (
+                <SquadPitchView manager={activeManager} />
+              ) : null;
+            })()}
+          </div>
+        ) : (
+          /* VISTA 2: LISTA TRADICIONAL */
+          <div className="space-y-4">
+            {rankedByRatio.map((stat, rankIdx) => (
+              <div
+                key={stat.buyer.id}
+                className="bg-white border border-slate-200/90 rounded-3xl p-5 sm:p-6 space-y-4 shadow-sm"
+              >
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm font-display shrink-0 ${
+                        rankIdx === 0
+                          ? 'bg-amber-400 text-slate-950 shadow-xs'
+                          : rankIdx === 1
+                          ? 'bg-slate-200 text-slate-800'
+                          : rankIdx === 2
+                          ? 'bg-amber-100 text-amber-900'
+                          : 'bg-slate-100 text-slate-600'
+                      }`}
+                    >
+                      #{rankIdx + 1}
+                    </div>
+                    <div>
+                      <h4 className="text-lg font-black text-slate-900 uppercase font-display">{stat.buyer.name}</h4>
+                      <p className="text-xs text-slate-500">
+                        {stat.buyer.squad.length} futbolistas incorporados
+                      </p>
+                    </div>
                   </div>
-                  <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Sobrante</span>
-                    <span className="font-black text-slate-700">${stat.buyer.budget}</span>
-                  </div>
-                  <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Valor Total</span>
-                    <span className="font-black text-emerald-700">${stat.totalValue}</span>
-                  </div>
-                  <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
-                    <span className="text-[9px] text-slate-500 uppercase block font-bold">Rentabilidad</span>
-                    <span className="font-black text-slate-900">{stat.ratio.toFixed(2)}x</span>
+
+                  <div className="grid grid-cols-2 sm:flex gap-2 text-xs font-mono">
+                    <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
+                      <span className="text-[9px] text-slate-500 uppercase block font-bold">Gastado</span>
+                      <span className="font-black text-amber-600 flex items-center gap-1">
+                        <StarTokenIcon size={12} />
+                        {stat.totalSpent}
+                      </span>
+                    </div>
+                    <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
+                      <span className="text-[9px] text-slate-500 uppercase block font-bold">Sobrante</span>
+                      <span className="font-black text-slate-700 flex items-center gap-1">
+                        <StarTokenIcon size={12} />
+                        {stat.buyer.budget}
+                      </span>
+                    </div>
+                    <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
+                      <span className="text-[9px] text-slate-500 uppercase block font-bold">Valor Total</span>
+                      <span className="font-black text-emerald-700 flex items-center gap-1">
+                        <StarTokenIcon size={12} />
+                        {stat.totalValue}
+                      </span>
+                    </div>
+                    <div className="bg-slate-50 px-3.5 py-1.5 rounded-xl border border-slate-200">
+                      <span className="text-[9px] text-slate-500 uppercase block font-bold">Rentabilidad</span>
+                      <span className="font-black text-slate-900">{stat.ratio.toFixed(2)}x</span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
               {stat.buyer.squad.length === 0 ? (
                 <p className="text-xs text-slate-500 italic py-2 text-center">
@@ -279,11 +367,11 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
                         </div>
 
                         <div className="mt-3 pt-2 border-t border-slate-200 flex items-center justify-between text-[11px] font-mono">
-                          <span className="text-slate-600">
-                            Pagó: <strong className="text-slate-900">${item.paidPrice}</strong>
+                          <span className="text-slate-600 flex items-center gap-1">
+                            Pagó: <StarTokenIcon size={12} /><strong className="text-slate-900">{item.paidPrice}</strong>
                           </span>
-                          <span className={`font-black ${isOverpay ? 'text-rose-600' : 'text-emerald-700'}`}>
-                            Valía: ${item.version.value}
+                          <span className={`font-black flex items-center gap-1 ${isOverpay ? 'text-rose-600' : 'text-emerald-700'}`}>
+                            Valía: <StarTokenIcon size={12} />{item.version.value}
                           </span>
                         </div>
                       </div>
@@ -294,7 +382,8 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
             </div>
           ))}
         </div>
-      </div>
+      )}
+    </div>
 
       {/* Botones de Acción */}
       <div className="flex flex-col sm:flex-row justify-center items-center gap-3.5 pt-6 border-t border-slate-200">
