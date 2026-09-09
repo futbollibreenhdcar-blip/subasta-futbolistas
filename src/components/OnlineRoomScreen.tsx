@@ -9,6 +9,7 @@ import {
   buyClueInRoom,
   advanceNextRoundInRoom,
   skipTurnByHost,
+  kickParticipantFromRoom,
 } from '../services/realtimeRoom';
 import { Player } from '../types';
 import { SilhouetteCard } from './SilhouetteCard';
@@ -51,6 +52,17 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
     });
     return () => unsubscribe();
   }, [room.codigo]);
+
+  // Detectar si este participante fue expulsado de la sala por el Host
+  useEffect(() => {
+    if (room && room.participantes && room.participantes.length > 0) {
+      const stillInRoom = room.participantes.some((p) => p.id === participant.id);
+      if (!stillInRoom) {
+        alert('Has sido retirado de la sala por el anfitrión.');
+        onExit();
+      }
+    }
+  }, [room?.participantes, participant.id, onExit]);
 
   // Vibración háptica en teléfonos móviles
   const triggerHaptic = (ms = 30) => {
@@ -208,6 +220,23 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
     }
   };
 
+  // Expulsar a un participante de la sala (Host Override)
+  const handleKickParticipant = async (participantId: string, participantName: string) => {
+    if (!isHost || isProcessing) return;
+    if (!window.confirm(`¿Seguro que deseas expulsar a "${participantName}" de la sala?`)) {
+      return;
+    }
+    setIsProcessing(true);
+    triggerHaptic(40);
+    try {
+      await kickParticipantFromRoom(room.codigo, participantId);
+    } catch (e: any) {
+      alert('Error al expulsar participante: ' + e.message);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // ==========================================
   // RENDER 1: PANTALLA FINAL (TODOS TERMINARON)
   // ==========================================
@@ -353,7 +382,20 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
                       </span>
                     </div>
                   </div>
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs animate-pulse" />
+                  <div className="flex items-center gap-2">
+                    {isHost && !p.isHost && (
+                      <button
+                        onClick={() => handleKickParticipant(p.id, p.name)}
+                        disabled={isProcessing}
+                        className="px-2 py-1 bg-rose-50 hover:bg-rose-100 active:bg-rose-200 border border-rose-200 text-rose-700 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+                        title={`Expulsar a ${p.name} de la sala`}
+                      >
+                        <span>✕</span>
+                        <span>Expulsar</span>
+                      </button>
+                    )}
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-xs animate-pulse" />
+                  </div>
                 </div>
               );
             })}
@@ -542,9 +584,21 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
                       <span>{p.budget} Fichas</span>
                     </div>
                   </div>
-                  <span className={`font-mono font-black text-sm ${full ? 'text-emerald-700' : 'text-slate-700'}`}>
-                    {p.squad.length}/11
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className={`font-mono font-black text-sm ${full ? 'text-emerald-700' : 'text-slate-700'}`}>
+                      {p.squad.length}/11
+                    </span>
+                    {isHost && !p.isHost && (
+                      <button
+                        onClick={() => handleKickParticipant(p.id, p.name)}
+                        disabled={isProcessing}
+                        className="px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-mono font-bold transition-all cursor-pointer"
+                        title={`Expulsar a ${p.name}`}
+                      >
+                        ✕ Expulsar
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
@@ -622,7 +676,10 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
                   ? '⚡ ¡ES TU TURNO DE PUJAR!'
                   : isLeader
                   ? '👑 ¡TIENES LA MEJOR OFERTA!'
-                  : `TURNO DE: ${currentTurnBuyer?.name || 'OTRO DT'}`}
+                  : `TURNO DE: ${
+                      currentTurnBuyer?.name ||
+                      (activeBidders.find((b) => b.id !== currentParticipant.id)?.name ?? 'OTRO DT')
+                    }`}
               </span>
 
               <div className="flex items-center gap-1 text-sm font-mono text-amber-600 font-black">
@@ -768,18 +825,30 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
             /* SI NO ES MI TURNO */
             <div className="space-y-2.5">
               <div className="text-center py-4 px-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 italic">
-                Turno de <strong className="text-slate-800">{currentTurnBuyer?.name}</strong>. Tus botones se activarán cuando te toque ofertar.
+                Turno de <strong className="text-slate-800">{currentTurnBuyer?.name || (activeBidders.find((b) => b.id !== currentParticipant.id)?.name ?? 'OTRO DT')}</strong>. Tus botones se activarán cuando te toque ofertar.
               </div>
-              {/* Botón de anfitrión para saltar turno si alguien se desconecta o tarda */}
+              {/* Botón de anfitrión para saltar turno o expulsar si alguien se desconecta o tarda */}
               {isHost && currentTurnBuyer && (
-                <button
-                  onClick={() => handleSkipTurnHost(currentTurnBuyer.id)}
-                  disabled={isProcessing}
-                  className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-300 hover:text-white text-xs font-mono border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
-                  title="Salta el turno del jugador actual si está inactivo o desconectado"
-                >
-                  <span>⏭️ Saltar Turno de {currentTurnBuyer.name} (Control de Host)</span>
-                </button>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={() => handleSkipTurnHost(currentTurnBuyer.id)}
+                    disabled={isProcessing}
+                    className="flex-1 py-2.5 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 active:scale-98 text-slate-300 hover:text-white text-xs font-mono border border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-xs"
+                    title="Salta el turno del jugador actual si está inactivo o desconectado"
+                  >
+                    <span>⏭️ Saltar Turno de {currentTurnBuyer.name}</span>
+                  </button>
+                  {!currentTurnBuyer.isHost && (
+                    <button
+                      onClick={() => handleKickParticipant(currentTurnBuyer.id, currentTurnBuyer.name)}
+                      disabled={isProcessing}
+                      className="py-2.5 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 active:scale-98 text-rose-700 border border-rose-200 text-xs font-mono transition-all cursor-pointer flex items-center justify-center gap-1 shadow-xs"
+                      title="Expulsar a este manager de la sala"
+                    >
+                      <span>✕ Expulsar</span>
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}

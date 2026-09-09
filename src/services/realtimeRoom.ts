@@ -143,7 +143,8 @@ export async function getRoom(codigo: string): Promise<RoomState | null> {
  */
 export async function joinRoom(
   codigo: string,
-  playerName: string
+  playerName: string,
+  participantId?: string
 ): Promise<{ participant: RoomParticipant; room: RoomState }> {
   const cleanCode = codigo.trim().toUpperCase();
   const room = await getRoom(cleanCode);
@@ -152,35 +153,40 @@ export async function joinRoom(
     throw new Error(`La sala "${cleanCode}" no existe.`);
   }
 
-  // 1. Si el jugador ya estaba registrado (por nombre o reconexión), recuperamos su perfil
-  const existing = room.participantes.find(
-    (p) => p.name.toLowerCase() === playerName.trim().toLowerCase()
-  );
-  if (existing) {
-    return { participant: existing, room };
+  const cleanName = playerName.trim();
+
+  // 1. Si el jugador ya estaba registrado por ID de participante (reconexión confiable)
+  if (participantId) {
+    const existingById = room.participantes.find((p) => p.id === participantId);
+    if (existingById) {
+      return { participant: existingById, room };
+    }
   }
 
-  // 2. Si no estaba y la partida ya empezó, no permite entrar
+  // 2. Si el jugador ya estaba registrado por nombre exacto en la sala
+  const existingByName = room.participantes.find(
+    (p) => p.name.trim().toLowerCase() === cleanName.toLowerCase()
+  );
+  if (existingByName) {
+    return { participant: existingByName, room };
+  }
+
+  // 3. Si no estaba y la partida ya empezó, no permite entrar a nuevos jugadores
   if (room.estado !== 'esperando') {
-    throw new Error('La subasta en esta sala ya ha comenzado.');
+    throw new Error('La subasta en esta sala ya ha comenzado y no admite nuevos participantes.');
   }
 
   if (room.participantes.length >= 8) {
     throw new Error('La sala está completa (máximo 8 managers).');
   }
 
-  // Formar nombre único
-  let finalName = playerName.trim();
-  const nameExists = room.participantes.some(
-    (p) => p.name.toLowerCase() === finalName.toLowerCase()
-  );
-  if (nameExists) {
-    finalName = `${finalName} #${room.participantes.length + 1}`;
+  if (!cleanName) {
+    throw new Error('Por favor ingresa un nombre válido para unirte a la sala.');
   }
 
   const newParticipant: RoomParticipant = {
     id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    name: finalName,
+    name: cleanName,
     budget: room.config.initialBudget,
     initialBudget: room.config.initialBudget,
     squad: [],
@@ -190,7 +196,7 @@ export async function joinRoom(
 
   const updatedParticipants = [...room.participantes, newParticipant];
   const updatedHistorial = [
-    `📱 ${finalName} se unió a la sala.`,
+    `📱 ${cleanName} se unió a la sala.`,
     ...room.historial.slice(0, 15),
   ];
 
@@ -716,6 +722,64 @@ export async function skipTurnByHost(
   const room = await getRoom(codigo);
   if (!room || !room.ronda_actual || room.ronda_actual.isClosed) return;
   await passTurnInRoom(room, participantIdToSkip);
+}
+
+/**
+ * Permite al Host expulsar a un participante de la sala (en lobby o durante la partida)
+ */
+export async function kickParticipantFromRoom(
+  codigo: string,
+  participantIdToKick: string
+): Promise<void> {
+  const cleanCode = codigo.trim().toUpperCase();
+  const room = await getRoom(cleanCode);
+  if (!room) return;
+
+  const participantToKick = room.participantes.find((p) => p.id === participantIdToKick);
+  if (!participantToKick || participantToKick.isHost) {
+    return;
+  }
+
+  const updatedParticipants = room.participantes.filter((p) => p.id !== participantIdToKick);
+  const updatedHistorial = [
+    `🚫 El Anfitrión expulsó a ${participantToKick.name} de la sala.`,
+    ...room.historial.slice(0, 15),
+  ];
+
+  let updatedRound = room.ronda_actual;
+  if (updatedRound && !updatedRound.isClosed) {
+    const activeBidders = updatedParticipants.filter(
+      (b) => b.squad.length < room.config.targetSquadSize
+    );
+    const newIdx =
+      activeBidders.length > 0
+        ? updatedRound.currentTurnBuyerIndex % activeBidders.length
+        : 0;
+
+    let highestBidderId = updatedRound.highestBidderId;
+    let highestBid = updatedRound.highestBid;
+    if (highestBidderId === participantIdToKick) {
+      highestBidderId = null;
+      highestBid = room.config.minIncrement;
+    }
+
+    updatedRound = {
+      ...updatedRound,
+      currentTurnBuyerIndex: newIdx,
+      highestBidderId,
+      highestBid,
+    };
+  }
+
+  await supabase
+    .from('salas')
+    .update({
+      participantes: updatedParticipants,
+      ronda_actual: updatedRound,
+      historial: updatedHistorial,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('codigo', cleanCode);
 }
 
 /**

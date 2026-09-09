@@ -48,16 +48,20 @@ export const App: React.FC = () => {
     // Intentar reconectar si se recargó la página en el celular
     const savedCode = sessionStorage.getItem('subasta_room_code');
     const savedName = sessionStorage.getItem('subasta_participant_name');
-    if (savedCode && savedName) {
-      joinRoom(savedCode, savedName)
+    const savedId = sessionStorage.getItem('subasta_participant_id') || undefined;
+
+    if (savedCode && (savedName || savedId)) {
+      joinRoom(savedCode, savedName || '', savedId)
         .then(({ participant, room }) => {
           setOnlineRoom(room);
           setOnlineParticipant(participant);
+          sessionStorage.setItem('subasta_participant_id', participant.id);
           setCurrentView('online_room');
         })
         .catch(() => {
           sessionStorage.removeItem('subasta_room_code');
           sessionStorage.removeItem('subasta_participant_name');
+          sessionStorage.removeItem('subasta_participant_id');
         });
     }
   }, []);
@@ -87,6 +91,7 @@ export const App: React.FC = () => {
       setOnlineParticipant(hostParticipant);
       sessionStorage.setItem('subasta_room_code', room.codigo);
       sessionStorage.setItem('subasta_participant_name', hostParticipant.name);
+      sessionStorage.setItem('subasta_participant_id', hostParticipant.id);
       setCurrentView('online_room');
     } catch (err: any) {
       alert('Error al crear sala online: ' + err.message);
@@ -96,11 +101,13 @@ export const App: React.FC = () => {
   // Unirse a una sala online desde el celular o navegador
   const handleJoinOnlineRoom = async (code: string, playerName: string) => {
     try {
-      const { participant, room } = await joinRoom(code, playerName);
+      const savedId = sessionStorage.getItem('subasta_participant_id') || undefined;
+      const { participant, room } = await joinRoom(code, playerName, savedId);
       setOnlineRoom(room);
       setOnlineParticipant(participant);
       sessionStorage.setItem('subasta_room_code', room.codigo);
       sessionStorage.setItem('subasta_participant_name', participant.name);
+      sessionStorage.setItem('subasta_participant_id', participant.id);
       setCurrentView('online_room');
     } catch (err: any) {
       alert('No se pudo conectar a la sala: ' + err.message);
@@ -164,6 +171,7 @@ export const App: React.FC = () => {
             onExit={() => {
               sessionStorage.removeItem('subasta_room_code');
               sessionStorage.removeItem('subasta_participant_name');
+              sessionStorage.removeItem('subasta_participant_id');
               setOnlineRoom(null);
               setOnlineParticipant(null);
               setCurrentView('setup');
