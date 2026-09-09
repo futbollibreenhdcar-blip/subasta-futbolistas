@@ -41,6 +41,9 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
   evento = 'FC Mobile',
   playstyles = [],
 }) => {
+  // Estado para fallback de imagen de club
+  const [clubImgFailed, setClubImgFailed] = React.useState(false);
+
   // Configuración de estilo por Tier
   const tierConfig = {
     S: {
@@ -54,14 +57,14 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
       glow: 'shadow-[0_0_30px_rgba(6,182,212,0.3)]',
     },
     B: {
-      label: 'Destacado',
-      badgeBg: 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-black shadow-md',
-      glow: 'shadow-[0_0_25px_rgba(59,130,246,0.25)]',
+      label: 'Figura Consolidada',
+      badgeBg: 'bg-gradient-to-r from-emerald-400 to-teal-500 text-slate-950 font-black shadow-md',
+      glow: 'shadow-[0_0_25px_rgba(16,185,129,0.25)]',
     },
     C: {
-      label: 'Promesa',
-      badgeBg: 'bg-gradient-to-r from-emerald-500 to-teal-600 text-white font-black shadow-md',
-      glow: 'shadow-[0_0_25px_rgba(16,185,129,0.25)]',
+      label: 'Talento Destacado',
+      badgeBg: 'bg-gradient-to-r from-purple-400 to-indigo-500 text-white font-black shadow-md',
+      glow: 'shadow-[0_0_20px_rgba(168,85,247,0.2)]',
     },
     D: {
       label: 'Regular',
@@ -76,13 +79,13 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
 
   return (
     <div className={`flex flex-col items-center select-none ${className}`}>
-      {/* 1. Header de Estado del Estrado */}
+      {/* 1. Header de Estado del Estrado (PROGRAMA SIEMPRE VISIBLE EN MÓVIL Y ESCRITORIO) */}
       <div className="w-full max-w-[360px] flex items-center justify-between px-3 py-1.5 mb-3 bg-slate-900/90 border border-slate-700/80 rounded-2xl backdrop-blur-md shadow-md text-xs">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           <span className={`px-2.5 py-0.5 rounded-lg text-[11px] uppercase tracking-wider font-display ${tierConfig.badgeBg}`}>
             TIER {tier}
           </span>
-          <span className="text-slate-300 font-bold hidden sm:inline text-[11px] uppercase tracking-wide">
+          <span className="px-2 py-0.5 rounded-lg text-[10px] sm:text-[11px] font-black text-amber-300 bg-slate-800 border border-amber-400/30 uppercase tracking-wide">
             {evento}
           </span>
         </div>
@@ -182,20 +185,18 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
               </div>
             )}
 
-            {/* D4. ESCUDO DE CLUB / LOGO DEL PROGRAMA */}
-            {clubUrl ? (
+            {/* D4. ESCUDO DE CLUB / LOGO DEL PROGRAMA (CON FALLBACK ROBUSTO) */}
+            {clubUrl && !clubImgFailed && !clubUrl.includes('renderz.app') ? (
               <div className="absolute top-[74.5%] left-[64%] w-[13%] h-[8%] z-20 pointer-events-none p-0.5 flex items-center justify-center animate-fade-in">
                 <img
                   src={clubUrl}
                   alt="Club"
                   className="w-full h-full object-contain drop-shadow-md"
-                  onError={(e) => {
-                    (e.currentTarget as HTMLElement).style.display = 'none';
-                  }}
+                  onError={() => setClubImgFailed(true)}
                 />
               </div>
             ) : (
-              <div className="absolute top-[75%] left-[63%] z-20 pointer-events-none px-1.5 py-0.5 rounded bg-slate-900/80 border border-white/20 text-[8px] font-black text-amber-400 uppercase tracking-widest font-display animate-fade-in">
+              <div className="absolute top-[75%] left-[63%] z-20 pointer-events-none px-2 py-0.5 rounded-md bg-black/90 border border-amber-400/50 text-[8px] sm:text-[9px] font-black text-amber-300 uppercase tracking-wider font-display shadow-md animate-fade-in truncate max-w-[90px]">
                 {evento}
               </div>
             )}
@@ -215,7 +216,7 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
         <div className="w-full max-w-[350px] mt-4 space-y-2.5 animate-fade-in">
           {/* Tag de la Carta */}
           <div className="text-center">
-            <span className="text-xs font-black text-amber-600 uppercase tracking-widest font-display">
+            <span className="text-xs font-black text-amber-500 uppercase tracking-widest font-display">
               {versionTag || `${evento} • GRL ${grl} • ${posicion}`}
             </span>
           </div>
