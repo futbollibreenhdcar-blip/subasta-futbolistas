@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Buyer, BoughtPlayer } from '../types';
 import { FCMobileThumbnail } from './FCMobileThumbnail';
 import { SquadPitchView } from './SquadPitchView';
 import { StarTokenIcon } from './StarTokenIcon';
+import { judgeTournament } from '../services/footballBotJudge';
 
 interface GameOverScreenProps {
   buyers: Buyer[];
@@ -19,6 +20,15 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
 }) => {
   const [viewMode, setViewMode] = useState<'pitch' | 'list'>('pitch');
   const [activePitchManagerId, setActivePitchManagerId] = useState<string>(buyers[0]?.id || '');
+
+  // Evaluación futbolística integral por el DT Bot Experto
+  const tournamentJudgement = useMemo(() => judgeTournament(buyers), [buyers]);
+  const [selectedBotManagerId, setSelectedBotManagerId] = useState<string>(
+    tournamentJudgement.champion?.buyerId || buyers[0]?.id || ''
+  );
+  const activeBotEval =
+    tournamentJudgement.rankings.find((r) => r.buyerId === selectedBotManagerId) ||
+    tournamentJudgement.champion;
 
   const buyerStats = buyers.map((b) => {
     const totalSpent = b.initialBudget - b.budget;
@@ -79,7 +89,192 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
         </p>
       </div>
 
-      {/* PREMIOS DESTACADOS DEL TORNEO */}
+      {/* PREMIO CORONA: VEREDICTO DEL DT EXPERTO (CAMPEÓN DEL CÉSPED) */}
+      <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-amber-950/40 border-2 border-amber-400 rounded-3xl p-6 sm:p-8 shadow-2xl text-white space-y-6 relative overflow-hidden">
+        {/* Glow de fondo decorativo */}
+        <div className="absolute -top-24 -right-24 w-72 h-72 bg-amber-400/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Encabezado del Bot */}
+        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-3 border-b border-slate-800 pb-5">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl sm:text-4xl p-2 bg-amber-400/10 rounded-2xl border border-amber-400/30">🤖</span>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider font-display">
+                  EL VAR EXPERTO
+                </span>
+                <span className="text-xs font-mono text-amber-300 font-bold">
+                  MÉRITO DEPORTIVO & TÁCTICA
+                </span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white uppercase tracking-wide font-display mt-0.5">
+                EL VEREDICTO DEL DT EXPERTO
+              </h3>
+            </div>
+          </div>
+
+          {tournamentJudgement.champion && (
+            <div className="flex items-center gap-2 bg-amber-400/10 border border-amber-400/30 rounded-2xl px-4 py-2 self-start sm:self-auto">
+              <span className="text-2xl">🏆</span>
+              <div>
+                <span className="text-[10px] text-amber-300 uppercase font-black tracking-widest block font-display">
+                  ONCE DE ORO
+                </span>
+                <strong className="text-sm font-black text-white uppercase font-sans">
+                  {tournamentJudgement.champion.buyerName}
+                </strong>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <p className="text-slate-300 text-xs sm:text-sm italic">
+          "{tournamentJudgement.botIntro}"
+        </p>
+
+        {/* Selector de DT si hay varios participantes */}
+        {tournamentJudgement.rankings.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs font-black uppercase text-slate-400 font-display">
+              INFORME POR DT:
+            </span>
+            {tournamentJudgement.rankings.map((ev, rankIdx) => {
+              const isSelected = ev.buyerId === selectedBotManagerId;
+              return (
+                <button
+                  key={ev.buyerId}
+                  onClick={() => setSelectedBotManagerId(ev.buyerId)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isSelected
+                      ? 'bg-amber-400 text-slate-950 shadow-md ring-2 ring-amber-300/50'
+                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  }`}
+                >
+                  <span>#{rankIdx + 1}</span>
+                  <span className="uppercase">{ev.buyerName}</span>
+                  <span className="text-[10px] font-mono opacity-80">({ev.totalFootballScore} pts)</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Panel del DT Seleccionado */}
+        {activeBotEval && (
+          <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 space-y-5 backdrop-blur-sm animate-fade-in">
+            {/* Header del DT */}
+            <div className="flex flex-col sm:flex-row justify-between sm:items-baseline gap-2 border-b border-slate-800/80 pb-4">
+              <div>
+                <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest block font-display">
+                  {activeBotEval.buyerId === tournamentJudgement.champion.buyerId ? '⭐ CAMPEÓN FUTBOLÍSTICO' : 'EVALUACIÓN DEL ESCUADRÓN'}
+                </span>
+                <h4 className="text-2xl font-black text-white uppercase font-display">
+                  {activeBotEval.buyerName}
+                </h4>
+              </div>
+              <div className="flex items-baseline gap-1 self-start sm:self-auto">
+                <span className="text-3xl font-black text-amber-400 font-mono">
+                  {activeBotEval.totalFootballScore}
+                </span>
+                <span className="text-xs text-slate-400 font-bold uppercase">/ 100 PTS</span>
+              </div>
+            </div>
+
+            {/* 3 Métricas con Barras de Progreso */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Métrica 1: Fútbol Real */}
+              <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-bold flex items-center gap-1">
+                    <span>🌟</span>
+                    <span>Palmarés Real</span>
+                  </span>
+                  <span className="text-amber-400 font-mono font-black">{activeBotEval.realLifeScore}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-amber-500 to-yellow-300 rounded-full transition-all duration-700"
+                    style={{ width: `${activeBotEval.realLifeScore}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 block truncate">
+                  Mundiales, Balones de Oro, Leyendas
+                </span>
+              </div>
+
+              {/* Métrica 2: Poderío FC Mobile */}
+              <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-bold flex items-center gap-1">
+                    <span>🎮</span>
+                    <span>Poder FC Mobile</span>
+                  </span>
+                  <span className="text-cyan-400 font-mono font-black">{activeBotEval.inGameScore}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-cyan-500 to-blue-400 rounded-full transition-all duration-700"
+                    style={{ width: `${activeBotEval.inGameScore}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 block truncate">
+                  GRL Medio ({activeBotEval.averageGrl}) + {activeBotEval.goldenPlaystylesCount} PlayStyles+
+                </span>
+              </div>
+
+              {/* Métrica 3: Balance Táctico */}
+              <div className="bg-slate-950/80 p-3.5 rounded-xl border border-slate-800 space-y-1.5">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-slate-400 font-bold flex items-center gap-1">
+                    <span>📐</span>
+                    <span>Balance Táctico</span>
+                  </span>
+                  <span className="text-emerald-400 font-mono font-black">{activeBotEval.tacticalBalanceScore}%</span>
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-emerald-500 to-teal-300 rounded-full transition-all duration-700"
+                    style={{ width: `${activeBotEval.tacticalBalanceScore}%` }}
+                  />
+                </div>
+                <span className="text-[10px] text-slate-400 block truncate">
+                  {activeBotEval.goalkeeperCount > 0 ? 'Con arquero titular' : '⚠️ Sin portero profesional'}
+                </span>
+              </div>
+            </div>
+
+            {/* Crónica y Veredicto del DT Bot */}
+            <div className="bg-slate-950/90 border border-amber-400/20 rounded-2xl p-4 space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase text-amber-400 tracking-wider font-display">
+                  {activeBotEval.verdictTitle}
+                </span>
+              </div>
+              <p className="text-slate-200 text-xs sm:text-sm leading-relaxed">
+                {activeBotEval.verdictComment}
+              </p>
+              <div className="pt-2 border-t border-slate-800 flex items-center gap-2 text-xs font-semibold text-slate-300">
+                <span>{activeBotEval.tacticalVerdict}</span>
+              </div>
+            </div>
+
+            {/* Resumen de Formación en Números */}
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono text-slate-400 pt-1">
+              <div className="flex items-center gap-3">
+                <span>🧤 POR: <strong className="text-white">{activeBotEval.goalkeeperCount}</strong></span>
+                <span>🛡️ DEF: <strong className="text-white">{activeBotEval.defenderCount}</strong></span>
+                <span>🧠 MED: <strong className="text-white">{activeBotEval.midfielderCount}</strong></span>
+                <span>⚡ DEL: <strong className="text-white">{activeBotEval.attackerCount}</strong></span>
+              </div>
+              <div>
+                <span>✨ PlayStyles+ Dorados: <strong className="text-amber-400">{activeBotEval.goldenPlaystylesCount}</strong></span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* PREMIOS FINANCIEROS Y DE MERCADO */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* PREMIO 1: MEJOR MANAGER */}
         <div className="bg-gradient-to-br from-amber-50/90 via-white to-amber-50/40 border-2 border-amber-400 rounded-3xl p-6 shadow-lg flex flex-col justify-between">

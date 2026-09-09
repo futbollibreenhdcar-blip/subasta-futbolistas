@@ -531,6 +531,7 @@ export const OnlineHostScreen: React.FC<OnlineHostScreenProps> = ({
             grl={round.version.grl}
             posicion={round.version.posicion}
             evento={round.version.evento}
+            playstyles={round.version.playstyles}
           />
 
           {/* Botón Siguiente Ronda (visible para el Host cuando se revela la carta) */}

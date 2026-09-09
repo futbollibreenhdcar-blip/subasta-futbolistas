@@ -489,6 +489,7 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
           grl={roundState.version.grl}
           posicion={roundState.version.posicion}
           evento={roundState.version.evento}
+          playstyles={roundState.version.playstyles}
           tier={roundState.version.tier}
           playerName={roundState.player.name}
           versionTag={roundState.version.versionTag}

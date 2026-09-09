@@ -9,6 +9,7 @@ import {
 } from '../services/realtimeRoom';
 import { StarTokenIcon } from './StarTokenIcon';
 import { SquadPitchView } from './SquadPitchView';
+import { evaluateManagerSquad } from '../services/footballBotJudge';
 
 interface OnlinePlayerScreenProps {
   initialRoom: RoomState;
@@ -109,8 +110,10 @@ export const OnlinePlayerScreen: React.FC<OnlinePlayerScreenProps> = ({
     await sendMobileCluePurchase(room.codigo, currentParticipant.id, clueType);
   };
 
-  // RENDER 1: FIN DE PARTIDA - VER MI ONCE TITULAR
+  // RENDER 1: FIN DE PARTIDA - VER MI ONCE TITULAR Y EVALUACIÓN DEL DT BOT
   if (room.estado === 'finalizado') {
+    const evalResult = evaluateManagerSquad(currentParticipant);
+
     return (
       <div className="max-w-md mx-auto px-4 py-6 space-y-6 select-none">
         <div className="text-center space-y-2">
@@ -125,11 +128,44 @@ export const OnlinePlayerScreen: React.FC<OnlinePlayerScreenProps> = ({
           </p>
         </div>
 
+        {/* Tarjeta de Veredicto del DT Bot en el Móvil */}
+        <div className="bg-slate-900 border border-amber-400/60 rounded-3xl p-5 text-white space-y-3 shadow-xl">
+          <div className="flex justify-between items-baseline border-b border-slate-800 pb-2.5">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">🤖</span>
+              <span className="text-xs font-black text-amber-400 uppercase font-display">
+                Veredicto del DT
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-2xl font-black text-amber-400 font-mono">
+                {evalResult.totalFootballScore}
+              </span>
+              <span className="text-[10px] text-slate-400 font-bold">/100 PTS</span>
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <span className="text-xs font-black text-white uppercase font-display block">
+              {evalResult.verdictTitle}
+            </span>
+            <p className="text-slate-300 text-xs leading-relaxed">
+              {evalResult.verdictComment}
+            </p>
+          </div>
+
+          <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono text-slate-400">
+            <span>🌟 Palmarés: <strong className="text-amber-300">{evalResult.realLifeScore}%</strong></span>
+            <span>🎮 In-Game: <strong className="text-cyan-300">{evalResult.inGameScore}%</strong></span>
+            <span>📐 Balance: <strong className="text-emerald-300">{evalResult.tacticalBalanceScore}%</strong></span>
+          </div>
+        </div>
+
         <SquadPitchView manager={currentParticipant} />
 
         <button
           onClick={onExit}
-          className="w-full py-4 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-wider font-display shadow-lg"
+          className="w-full py-4 rounded-2xl bg-slate-900 text-white font-black text-xs uppercase tracking-wider font-display shadow-lg cursor-pointer"
         >
           SALIR DE LA SALA
         </button>

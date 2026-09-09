@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { BoughtPlayer, Buyer } from '../types';
 import { FCMobileThumbnail } from './FCMobileThumbnail';
 import { StarTokenIcon } from './StarTokenIcon';
+import { PlayStyleBadge } from './PlayStyleBadge';
 
 interface SquadPitchViewProps {
   manager: Buyer;
@@ -355,6 +356,20 @@ export const SquadPitchView: React.FC<SquadPitchViewProps> = ({ manager }) => {
                 </div>
               </div>
             </div>
+
+            {/* PlayStyles del Futbolista */}
+            {selectedPlayer.version.playstyles && selectedPlayer.version.playstyles.length > 0 && (
+              <div className="w-full bg-slate-950/80 border border-slate-800 rounded-xl p-2.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider block mb-1.5 text-center font-display">
+                  ESTILOS DE JUEGO (PLAYSTYLES)
+                </span>
+                <div className="flex flex-wrap items-center justify-center gap-2">
+                  {selectedPlayer.version.playstyles.map((ps, idx) => (
+                    <PlayStyleBadge key={idx} playstyle={ps} size="sm" showLabel={true} />
+                  ))}
+                </div>
+              </div>
+            )}
 
             <button
               onClick={() => setSelectedPlayer(null)}

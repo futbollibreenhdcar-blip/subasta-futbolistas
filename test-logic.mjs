@@ -176,6 +176,55 @@ activeList = testSquadManagers.filter(m => m.squad.length < TARGET_SQUAD_SIZE);
 assert.strictEqual(activeList.length, 0);
 console.log('✅ Regla de 11 fichajes obligatorios por manager: CORRECTO');
 
+console.log('\n--- TEST 5: Evaluación del DT Bot / Jurado Futbolístico Experto ---');
+// Importar lógica del DT Bot
+import { evaluateManagerSquad, judgeTournament } from './src/services/footballBotJudge.ts';
+
+const dreamTeamBuyer = {
+  id: 'dt_legend',
+  name: 'DT Campeón Galáctico',
+  budget: 50,
+  initialBudget: 500,
+  squad: [
+    { playerName: 'Gianluigi Buffon', paidPrice: 50, version: { grl: 122, posicion: 'GK', tier: 'S', value: 95, playstyles: [{ name: 'PLAYSTYLE_FAR_REACH', level: 2, title: 'Reflejos Felinos' }] } },
+    { playerName: 'Paolo Maldini', paidPrice: 50, version: { grl: 122, posicion: 'CB', tier: 'S', value: 95, playstyles: [{ name: 'PLAYSTYLE_STAND_TACKLE_MASTER', level: 2, title: 'Anticipación' }] } },
+    { playerName: 'Virgil van Dijk', paidPrice: 40, version: { grl: 122, posicion: 'CB', tier: 'S', value: 90, playstyles: [{ name: 'PLAYSTYLE_AERIAL_DEFENSE', level: 1, title: 'Juego Aéreo' }] } },
+    { playerName: 'Cafú', paidPrice: 40, version: { grl: 121, posicion: 'RB', tier: 'S', value: 85, playstyles: [{ name: 'PLAYSTYLE_ACCELERATOR', level: 1, title: 'Paso Rápido' }] } },
+    { playerName: 'Roberto Carlos', paidPrice: 40, version: { grl: 121, posicion: 'LB', tier: 'S', value: 85, playstyles: [{ name: 'PLAYSTYLE_POWER_SHOT', level: 2, title: 'Tiro Potente' }] } },
+    { playerName: 'Zidane', paidPrice: 50, version: { grl: 122, posicion: 'CM', tier: 'S', value: 98, playstyles: [{ name: 'PLAYSTYLE_TIKI_TAKA', level: 2, title: 'Tiki-Taka' }] } },
+    { playerName: 'Xavi', paidPrice: 40, version: { grl: 121, posicion: 'CM', tier: 'S', value: 90, playstyles: [{ name: 'PLAYSTYLE_BULLET_PASS', level: 1, title: 'Pase Incisivo' }] } },
+    { playerName: 'Pelé', paidPrice: 60, version: { grl: 122, posicion: 'CAM', tier: 'S', value: 100, playstyles: [{ name: 'PLAYSTYLE_TRICKSTER', level: 2, title: 'Fantasista' }] } },
+    { playerName: 'Lionel Messi', paidPrice: 50, version: { grl: 122, posicion: 'RW', tier: 'S', value: 98, playstyles: [{ name: 'PLAYSTYLE_FINESSE_SHOT', level: 2, title: 'Tiro con Calidad' }] } },
+    { playerName: 'Cristiano Ronaldo', paidPrice: 50, version: { grl: 120, posicion: 'LW', tier: 'A', value: 96, playstyles: [{ name: 'PLAYSTYLE_POWER_SHOT', level: 2, title: 'Tiro Potente' }] } },
+    { playerName: 'Ronaldo Nazário', paidPrice: 50, version: { grl: 122, posicion: 'ST', tier: 'S', value: 98, playstyles: [{ name: 'PLAYSTYLE_CLINICAL_FINISHER', level: 2, title: 'Definición Clínica' }] } },
+  ],
+};
+
+const chaoticBuyer = {
+  id: 'dt_chaotic',
+  name: 'DT Descompensado',
+  budget: 450,
+  initialBudget: 500,
+  squad: new Array(11).fill(null).map((_, i) => ({
+    playerName: `Delantero Random ${i}`,
+    paidPrice: 5,
+    version: { grl: 115, posicion: 'ST', tier: 'C', value: 40, playstyles: [] },
+  })),
+};
+
+const evalDream = evaluateManagerSquad(dreamTeamBuyer);
+const evalChaotic = evaluateManagerSquad(chaoticBuyer);
+
+assert.ok(evalDream.totalFootballScore > evalChaotic.totalFootballScore, 'Dream team debe superar al equipo caótico');
+assert.ok(evalDream.realLifeScore >= 80, 'Pelé, Messi, CR7 y Zidane deben dar alta puntuación histórica');
+assert.strictEqual(evalChaotic.goalkeeperCount, 0, 'Equipo caótico no tiene portero');
+assert.ok(evalChaotic.tacticalBalanceScore < 60, 'Jugar sin arquero y con 11 delanteros debe penalizar el balance');
+assert.ok(evalDream.goldenPlaystylesCount >= 5, 'Dream team debe acumular múltiples PlayStyles+ dorados');
+
+const tournament = judgeTournament([chaoticBuyer, dreamTeamBuyer]);
+assert.strictEqual(tournament.champion.buyerId, 'dt_legend', 'El DT Campeón Galáctico debe coronarse campeón de torneo');
+console.log('✅ DT Bot Evaluador y VAR Futbolístico: CORRECTO (Puntuación Campeón: ' + evalDream.totalFootballScore + ' pts vs ' + evalChaotic.totalFootballScore + ' pts)');
+
 console.log('\n=======================================');
-console.log(' TODOS LOS TESTS DE REGLAS PASARON (4/4) ');
+console.log(' TODOS LOS TESTS DE REGLAS PASARON (5/5) ');
 console.log('=======================================');

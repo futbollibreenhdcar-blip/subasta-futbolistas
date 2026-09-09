@@ -2,6 +2,15 @@ export type Tier = 'S' | 'A' | 'B' | 'C' | 'D';
 
 export type DeckType = 'leyendas' | 'estrellas_actuales' | 'arqueros' | 'retirados' | 'mixto';
 
+export interface CardPlayStyle {
+  id?: number;
+  name: string;          // ej. "PLAYSTYLE_FINESSE_SHOT"
+  title: string;         // ej. "Tiro con Calidad"
+  description?: string;  // ej. "Realiza tiros colocados con mayor efecto y precisión."
+  iconUrl?: string;      // URL del icono de RenderZ o SVG
+  level: 1 | 2;          // 1: Estándar (plata), 2: PlayStyle+ (dorado)
+}
+
 export interface PlayerVersion {
   id: string;             // UUID único de la versión
   versionTag: string;     // ej. "TOTS 26 - Real Madrid"
@@ -15,6 +24,7 @@ export interface PlayerVersion {
   grl?: number;           // Media oficial FC Mobile (ej. 120)
   posicion?: string;      // Posición (ST, CB, RW, etc.)
   evento?: string;        // Nombre del evento (TOTS, Icons, Heroes, etc.)
+  playstyles?: CardPlayStyle[]; // Rasgos / Estilos de juego oficiales
   posicionPista?: string;
   continentePista?: string;
   decadaPista?: string;

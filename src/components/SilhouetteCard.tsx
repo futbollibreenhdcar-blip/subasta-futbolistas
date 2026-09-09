@@ -1,6 +1,7 @@
 import React from 'react';
-import { Tier } from '../types';
+import { Tier, CardPlayStyle } from '../types';
 import { StarTokenIcon } from './StarTokenIcon';
+import { PlayStyleBadge } from './PlayStyleBadge';
 
 interface SilhouetteCardProps {
   imageDataUrl: string;
@@ -19,6 +20,7 @@ interface SilhouetteCardProps {
   grl?: number;
   posicion?: string;
   evento?: string;
+  playstyles?: CardPlayStyle[];
 }
 
 export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
@@ -37,6 +39,7 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
   grl = 100,
   posicion = 'ST',
   evento = 'FC Mobile',
+  playstyles = [],
 }) => {
   // Configuración de estilo por Tier
   const tierConfig = {
@@ -198,6 +201,22 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
               {versionTag || `${evento} • GRL ${grl} • ${posicion}`}
             </span>
           </div>
+
+          {/* Rasgos / PlayStyles Oficiales FC Mobile */}
+          {playstyles && playstyles.length > 0 && (
+            <div className="flex flex-wrap items-center justify-center gap-2 p-2 bg-slate-900/80 border border-slate-800 rounded-2xl shadow-inner backdrop-blur-xs">
+              <div className="w-full text-center mb-0.5">
+                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider font-display">
+                  PLAYSTYLES OFICIALES
+                </span>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2">
+                {playstyles.map((ps, idx) => (
+                  <PlayStyleBadge key={idx} playstyle={ps} size="md" showLabel={true} />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Comparación Valor vs Pagado */}
           <div className="grid grid-cols-2 gap-2.5 font-mono">
