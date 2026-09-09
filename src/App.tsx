@@ -53,6 +53,12 @@ export const App: React.FC = () => {
     if (savedCode && (savedName || savedId)) {
       joinRoom(savedCode, savedName || '', savedId)
         .then(({ participant, room }) => {
+          if (room.estado === 'finalizado' || !room.participantes.some((p) => p.id === participant.id)) {
+            sessionStorage.removeItem('subasta_room_code');
+            sessionStorage.removeItem('subasta_participant_name');
+            sessionStorage.removeItem('subasta_participant_id');
+            return;
+          }
           setOnlineRoom(room);
           setOnlineParticipant(participant);
           sessionStorage.setItem('subasta_participant_id', participant.id);

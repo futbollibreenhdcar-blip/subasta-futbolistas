@@ -10,6 +10,7 @@ import {
   advanceNextRoundInRoom,
   skipTurnByHost,
   kickParticipantFromRoom,
+  leaveRoom,
 } from '../services/realtimeRoom';
 import { Player } from '../types';
 import { SilhouetteCard } from './SilhouetteCard';
@@ -234,6 +235,24 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
       alert('Error al expulsar participante: ' + e.message);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Abandonar la sala online y volver al menú principal
+  const handleLeaveMatch = async () => {
+    const isConfirm = window.confirm(
+      isHost
+        ? '¿Seguro que deseas salir? Como Anfitrión, la partida se cerrará para todos.'
+        : '¿Seguro que deseas abandonar la partida online?'
+    );
+    if (!isConfirm) return;
+
+    try {
+      await leaveRoom(room.codigo, currentParticipant.id);
+    } catch (err) {
+      console.error('Error al salir de la sala:', err);
+    } finally {
+      onExit();
     }
   };
 
@@ -478,8 +497,8 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
           </div>
         </div>
 
-        {/* Billetera de Fichas Estelares & Progreso de Fichajes */}
-        <div className="flex items-center gap-3 text-xs font-mono">
+        {/* Billetera de Fichas Estelares & Progreso de Fichajes + Botón Abandonar */}
+        <div className="flex items-center gap-2 sm:gap-3 text-xs font-mono">
           <div className="text-right">
             <span className="text-[9px] text-slate-400 uppercase block font-sans">
               Plantel
@@ -488,12 +507,39 @@ export const OnlineRoomScreen: React.FC<OnlineRoomScreenProps> = ({
               {currentParticipant.squad.length}/11
             </span>
           </div>
-          <div className="bg-slate-800/90 border border-amber-400/30 px-3 py-1.5 rounded-xl flex items-center gap-1 text-yellow-300 font-black">
+          <div className="bg-slate-800/90 border border-amber-400/30 px-2.5 sm:px-3 py-1.5 rounded-xl flex items-center gap-1 text-yellow-300 font-black">
             <StarTokenIcon size={14} />
             <span>{currentParticipant.budget}</span>
           </div>
+          <button
+            onClick={handleLeaveMatch}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/70 active:scale-95 border border-slate-700 hover:border-rose-500/60 text-slate-400 hover:text-rose-300 text-xs transition-all cursor-pointer flex items-center gap-1 shadow-xs"
+            title="Abandonar sala y volver al menú principal"
+          >
+            <span className="text-xs">🚪</span>
+            <span className="text-[10px] font-mono font-bold uppercase">Salir</span>
+          </button>
         </div>
       </div>
+
+      {/* Aviso de Sala Unipersonal (si todos los rivales abandonaron o fueron expulsados) */}
+      {room.participantes.length < 2 && (
+        <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 text-center space-y-2 shadow-md animate-in fade-in">
+          <p className="text-xs font-black text-rose-800 uppercase font-display">
+            ⚠️ TE HAS QUEDADO SOLO EN LA SALA
+          </p>
+          <p className="text-xs text-rose-600 font-medium">
+            Los demás managers han salido de la partida. Se necesitan al menos 2 participantes para continuar la subasta.
+          </p>
+          <button
+            onClick={handleLeaveMatch}
+            className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold font-mono rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1"
+          >
+            <span>🚪</span>
+            <span>Salir al Menú Principal</span>
+          </button>
+        </div>
+      )}
 
       {/* 2. Pestañas de Navegación Móvil (Subasta | Mi Once | Rivales | Historial) */}
       <div className="grid grid-cols-4 gap-1 p-1 bg-slate-200/90 rounded-2xl text-[11px] font-display font-black text-center">

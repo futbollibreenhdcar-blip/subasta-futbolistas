@@ -783,6 +783,79 @@ export async function kickParticipantFromRoom(
 }
 
 /**
+ * Permite a un participante abandonar la sala voluntariamente
+ */
+export async function leaveRoom(
+  codigo: string,
+  participantId: string
+): Promise<void> {
+  const cleanCode = codigo.trim().toUpperCase();
+  const room = await getRoom(cleanCode);
+  if (!room) return;
+
+  const leaver = room.participantes.find((p) => p.id === participantId);
+  if (!leaver) return;
+
+  // Si el host abandona la sala, se finaliza la sala para todos
+  if (leaver.isHost) {
+    await supabase
+      .from('salas')
+      .update({
+        estado: 'finalizado',
+        historial: [
+          `🚪 El Anfitrión ${leaver.name} abandonó y cerró la sala.`,
+          ...room.historial.slice(0, 15),
+        ],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('codigo', cleanCode);
+    return;
+  }
+
+  // Si un participante común abandona
+  const updatedParticipants = room.participantes.filter((p) => p.id !== participantId);
+  const updatedHistorial = [
+    `🚪 ${leaver.name} abandonó la partida.`,
+    ...room.historial.slice(0, 15),
+  ];
+
+  let updatedRound = room.ronda_actual;
+  if (updatedRound && !updatedRound.isClosed) {
+    const activeBidders = updatedParticipants.filter(
+      (b) => b.squad.length < room.config.targetSquadSize
+    );
+    const newIdx =
+      activeBidders.length > 0
+        ? updatedRound.currentTurnBuyerIndex % activeBidders.length
+        : 0;
+
+    let highestBidderId = updatedRound.highestBidderId;
+    let highestBid = updatedRound.highestBid;
+    if (highestBidderId === participantId) {
+      highestBidderId = null;
+      highestBid = room.config.minIncrement;
+    }
+
+    updatedRound = {
+      ...updatedRound,
+      currentTurnBuyerIndex: newIdx,
+      highestBidderId,
+      highestBid,
+    };
+  }
+
+  await supabase
+    .from('salas')
+    .update({
+      participantes: updatedParticipants,
+      ronda_actual: updatedRound,
+      historial: updatedHistorial,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('codigo', cleanCode);
+}
+
+/**
  * Suscribirse en tiempo real a los cambios de la sala (Postgres Changes + WebSockets)
  */
 export function subscribeToRoom(
