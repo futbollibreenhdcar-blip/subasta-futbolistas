@@ -1,4 +1,5 @@
 import React from 'react';
+import { isSignedCard } from '../utils/cardUtils';
 
 interface FCMobileThumbnailProps {
   cardBgUrl?: string;
@@ -19,6 +20,8 @@ export const FCMobileThumbnail: React.FC<FCMobileThumbnailProps> = ({
   className = '',
   sizeClassName = 'w-14 h-14 sm:w-16 sm:h-16',
 }) => {
+  const isSigned = isSignedCard(cardBgUrl);
+
   return (
     <div
       className={`relative ${sizeClassName} aspect-square shrink-0 rounded-xl overflow-hidden border border-slate-200/80 bg-slate-900 shadow-xs select-none ${className}`}
@@ -34,8 +37,8 @@ export const FCMobileThumbnail: React.FC<FCMobileThumbnailProps> = ({
         />
       )}
 
-      {/* 2. Recorte de Acción del Jugador (Superposición 1:1 sin deformar) */}
-      {imageDataUrl && (
+      {/* 2. Recorte de Acción del Jugador (solo si no es carta firmada con arte integrado) */}
+      {imageDataUrl && !isSigned && (
         <img
           src={imageDataUrl}
           alt={playerName || 'Futbolista'}

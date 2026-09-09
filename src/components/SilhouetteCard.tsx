@@ -2,6 +2,7 @@ import React from 'react';
 import { Tier, CardPlayStyle } from '../types';
 import { StarTokenIcon } from './StarTokenIcon';
 import { PlayStyleBadge } from './PlayStyleBadge';
+import { isSignedCard, getAuctionBackgroundUrl } from '../utils/cardUtils';
 
 interface SilhouetteCardProps {
   imageDataUrl: string;
@@ -43,6 +44,11 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
 }) => {
   // Estado para fallback de imagen de club
   const [clubImgFailed, setClubImgFailed] = React.useState(false);
+
+  // Soporte de cartas firmadas (Dynamic Moments / Signature)
+  const isSigned = isSignedCard(cardBgUrl);
+  // Durante subasta ciega: fondo limpio sin futbolista; al revelarse: fondo firmado original completo
+  const effectiveBgUrl = isRevealed ? cardBgUrl : getAuctionBackgroundUrl(cardBgUrl);
 
   // Configuración de estilo por Tier
   const tierConfig = {
@@ -109,17 +115,21 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
           isRevealed ? 'scale-105 filter drop-shadow-[0_0_40px_rgba(245,158,11,0.5)]' : tierConfig.glow
         }`}
       >
-        {/* A. FONDO DE LA CARTA (LA CARTA SOLA SIN CORTES) */}
-        {cardBgUrl && (
+        {/* A. FONDO DE LA CARTA (LIMPIO EN SUBASTA, ORIGINAL FIRMADO AL REVELARSE) */}
+        {effectiveBgUrl && (
           <img
-            src={cardBgUrl}
+            src={effectiveBgUrl}
             alt="Carta FC Mobile"
             className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none z-0"
           />
         )}
 
-        {/* B. RECORTE DE ACCIÓN DEL JUGADOR (MISMO TAMAÑO EXACTO QUE LA CARTA, SIN ACHICAR NI PADDING) */}
-        {imageDataUrl && (
+        {/* B. RECORTE DE ACCIÓN DEL JUGADOR / SILUETA
+             - Durante subasta (!isRevealed): Siempre se muestra en silueta negra pura.
+             - Al revelarse (isRevealed): Si es carta firmada (isSigned), la silueta desaparece ('se va')
+               porque el fondo oficial ya contiene la foto original y firma del futbolista.
+               Si es carta estándar, se muestra el recorte oficial a todo color. */}
+        {imageDataUrl && (!isRevealed || !isSigned) && (
           <img
             src={imageDataUrl}
             alt={isRevealed ? playerName : 'Silueta del futbolista'}
