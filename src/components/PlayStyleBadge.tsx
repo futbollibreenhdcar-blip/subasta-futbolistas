@@ -27,16 +27,19 @@ export const PlayStyleBadge: React.FC<PlayStyleBadgeProps> = ({
   const isPlus = playstyle.level === 2;
 
   const containerSizes = {
-    sm: 'w-6 h-6',
-    md: 'w-8 h-8',
-    lg: 'w-10 h-10',
+    sm: 'w-7 h-7',
+    md: 'w-9 h-9',
+    lg: 'w-11 h-11',
   }[size];
 
   const svgSizes = {
-    sm: 'w-3.5 h-3.5',
-    md: 'w-4.5 h-4.5',
-    lg: 'w-6 h-6',
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+    lg: 'w-7 h-7',
   }[size];
+
+  // Identificador único para los gradientes SVG
+  const gradientId = `gold-grad-${playstyle.name.replace(/[^a-zA-Z0-9]/g, '')}-${isPlus ? 'plus' : 'norm'}`;
 
   return (
     <div
@@ -48,44 +51,65 @@ export const PlayStyleBadge: React.FC<PlayStyleBadgeProps> = ({
     >
       {/* Insignia Oficial FC Mobile (Rombo / Diamante Clásico del Juego) */}
       <div
-        className={`relative ${containerSizes} flex items-center justify-center transition-all duration-200 group-hover:scale-110 active:scale-95`}
+        className={`relative ${containerSizes} flex items-center justify-center transition-all duration-200 group-hover:scale-110 active:scale-95 ${
+          isPlus
+            ? 'filter drop-shadow-[0_0_8px_rgba(245,158,11,0.7)]'
+            : 'filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]'
+        }`}
       >
-        {/* Fondo del Pentágono / Diamante oficial de FC Mobile */}
-        <svg
-          viewBox="0 0 256 256"
-          className={`absolute inset-0 w-full h-full drop-shadow-md transition-all ${
-            isPlus
-              ? 'text-amber-500 filter drop-shadow-[0_0_6px_rgba(245,158,11,0.7)]'
-              : 'text-slate-700/90 filter drop-shadow-[0_1px_3px_rgba(0,0,0,0.5)]'
-          }`}
-        >
-          {/* Contorno y relleno del rombo oficial */}
+        {/* Fondo del Pentágono / Diamante oficial de FC Mobile con gradientes reales */}
+        <svg viewBox="0 0 256 256" className="absolute inset-0 w-full h-full">
+          <defs>
+            <linearGradient id={`${gradientId}-border`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FEF08A" />
+              <stop offset="35%" stopColor="#FBBF24" />
+              <stop offset="70%" stopColor="#F59E0B" />
+              <stop offset="100%" stopColor="#B45309" />
+            </linearGradient>
+            <linearGradient id={`${gradientId}-silver`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#F8FAFC" />
+              <stop offset="50%" stopColor="#94A3B8" />
+              <stop offset="100%" stopColor="#475569" />
+            </linearGradient>
+            <linearGradient id={`${gradientId}-icon`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#FFFBEB" />
+              <stop offset="40%" stopColor="#FDE047" />
+              <stop offset="80%" stopColor="#F59E0B" />
+              <stop offset="100%" stopColor="#D97706" />
+            </linearGradient>
+          </defs>
+
+          {/* Rombo exterior con fondo oscuro obsidiana y borde metálico grueso */}
           <path
-            d="M128,12.808L243.192,128,128,243.192,12.808,128Z"
-            className={isPlus ? 'fill-amber-400 stroke-amber-200' : 'fill-slate-800 stroke-slate-500'}
-            strokeWidth="10"
+            d="M128,14L242,128,128,242,14,128Z"
+            fill="#09090B"
+            stroke={isPlus ? `url(#${gradientId}-border)` : `url(#${gradientId}-silver)`}
+            strokeWidth={isPlus ? "18" : "14"}
             strokeLinejoin="round"
           />
-          {/* Brillo interno si es PlayStyle+ */}
+
+          {/* Halo sutil de fondo para el Plus */}
           {isPlus && (
             <path
-              d="M128,24L232,128,128,232,24,128Z"
-              className="fill-gradient-to-b from-amber-300 via-amber-500 to-amber-600 opacity-90"
+              d="M128,28L228,128,128,228,28,128Z"
+              fill="#78350F"
+              fillOpacity="0.35"
             />
           )}
         </svg>
 
-        {/* Vector SVG Oficial del PlayStyle */}
+        {/* Vector SVG Oficial del PlayStyle: EN DORADO RESPLANDECIENTE PARA EL PLUS Y BLANCO PARA NORMAL */}
         {officialDef && officialDef.paths.length > 0 ? (
           <svg
             viewBox={officialDef.viewBox}
-            className={`relative z-10 ${svgSizes} ${
-              isPlus ? 'text-slate-950 drop-shadow-xs' : 'text-slate-100 drop-shadow-xs'
-            }`}
-            fill="currentColor"
+            className={`relative z-10 ${svgSizes} filter transition-all drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]`}
           >
             {officialDef.paths.map((pathD, idx) => (
-              <path key={idx} d={pathD} fill="currentColor" />
+              <path
+                key={idx}
+                d={pathD}
+                fill={isPlus ? `url(#${gradientId}-icon)` : '#FFFFFF'}
+              />
             ))}
           </svg>
         ) : playstyle.iconUrl ? (
@@ -98,14 +122,14 @@ export const PlayStyleBadge: React.FC<PlayStyleBadgeProps> = ({
             }}
           />
         ) : (
-          <span className={`relative z-10 text-xs font-black ${isPlus ? 'text-slate-950' : 'text-slate-100'}`}>
+          <span className={`relative z-10 text-xs font-black ${isPlus ? 'text-amber-400' : 'text-slate-100'}`}>
             ⚡
           </span>
         )}
 
         {/* Badge "+" oficial de PlayStyle+ en la esquina superior derecha */}
         {isPlus && (
-          <span className="absolute -top-1 -right-1 z-20 w-3.5 h-3.5 bg-gradient-to-br from-yellow-300 to-amber-500 text-slate-950 text-[9px] font-black rounded-full flex items-center justify-center border border-amber-200 leading-none shadow-[0_1px_3px_rgba(0,0,0,0.6)]">
+          <span className="absolute -top-1 -right-1 z-20 w-4 h-4 bg-gradient-to-br from-yellow-300 via-amber-400 to-amber-500 text-slate-950 text-[10px] font-black rounded-full flex items-center justify-center border-2 border-slate-950 leading-none shadow-[0_0_6px_rgba(245,158,11,0.9)]">
             +
           </span>
         )}
@@ -115,7 +139,7 @@ export const PlayStyleBadge: React.FC<PlayStyleBadgeProps> = ({
         <span
           className={`text-[11px] font-extrabold uppercase tracking-wider font-display truncate max-w-[130px] ${
             isPlus
-              ? 'text-amber-400 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)]'
+              ? 'text-amber-400 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)]'
               : 'text-slate-300 drop-shadow-xs'
           }`}
         >
@@ -125,7 +149,7 @@ export const PlayStyleBadge: React.FC<PlayStyleBadgeProps> = ({
 
       {/* Tooltip táctil y flotante oficial */}
       {showTooltip && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-52 p-3 bg-slate-950/95 text-white text-xs rounded-2xl border-2 border-amber-400/60 shadow-2xl backdrop-blur-md z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150 text-center">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-52 p-3 bg-slate-950/95 text-white text-xs rounded-2xl border-2 border-amber-400/80 shadow-2xl backdrop-blur-md z-50 pointer-events-none animate-in fade-in zoom-in-95 duration-150 text-center">
           <div className="flex items-center justify-center gap-1.5 font-black uppercase tracking-wider font-display">
             <span className={isPlus ? 'text-amber-400' : 'text-slate-200'}>{title}</span>
             {isPlus && (
