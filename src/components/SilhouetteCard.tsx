@@ -154,16 +154,12 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
         ) : (
           /* D. ELEMENTOS REVELADOS EN ALTA DEFINICIÓN EN SUS POSICIONES OFICIALES */
           <>
-            {/* D1. GRL OFICIAL */}
-            <div className="absolute top-[2.5%] left-[14%] z-20 pointer-events-none flex flex-col items-start leading-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] animate-fade-in">
-              <span className="text-3xl sm:text-4xl md:text-5xl font-black font-display tracking-tighter bg-gradient-to-b from-white via-amber-100 to-amber-300 bg-clip-text text-transparent">
+            {/* D1 & D2. GRL Y POSICIÓN OFICIALES FC MOBILE (TEXTO BLANCO PURO APILADO SIN FONDOS) */}
+            <div className="absolute top-[4%] left-[13%] w-[25%] flex flex-col items-center justify-center leading-none pointer-events-none z-20 font-fcmobile select-none animate-fade-in">
+              <span className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
                 {grl}
               </span>
-            </div>
-
-            {/* D2. POSICIÓN OFICIAL */}
-            <div className="absolute top-[24%] left-[21%] z-20 pointer-events-none drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] animate-fade-in">
-              <span className="text-xs sm:text-sm font-black font-display text-white tracking-wider bg-slate-950/70 px-1.5 py-0.5 rounded border border-white/20">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-white uppercase tracking-wider drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] mt-0.5">
                 {posicion}
               </span>
             </div>

@@ -7,6 +7,7 @@ import {
   PlayerVersion,
 } from '../types';
 import { SilhouetteCard } from './SilhouetteCard';
+import { FCMobileThumbnail } from './FCMobileThumbnail';
 import { DECK_LABELS } from '../utils/tierColors';
 
 interface AuctionScreenProps {
@@ -69,6 +70,7 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
   const [roundState, setRoundState] = useState<ActiveRoundState | null>(null);
   const [stepperBid, setStepperBid] = useState<number>(config.minIncrement);
   const [roundHistory, setRoundHistory] = useState<string[]>([]);
+  const [inspectingBuyerId, setInspectingBuyerId] = useState<string | null>(null);
 
   // Costo fijo de la pista (5% del presupuesto inicial)
   const clueCost = Math.max(10, Math.round(config.initialBudget * 0.05));
@@ -378,6 +380,7 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
   };
 
   const highestBidder = buyers.find((b) => b.id === roundState.highestBidderId);
+  const inspectingBuyer = buyers.find((b) => b.id === inspectingBuyerId);
   const remainingInDeck = getEligiblePlayers(usedPlayerIds).length;
 
   return (
@@ -417,13 +420,15 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
           return (
             <div
               key={b.id}
-              className={`shrink-0 px-3.5 py-2.5 rounded-2xl border transition-all flex flex-col justify-between min-w-[130px] relative ${
+              onClick={() => setInspectingBuyerId(b.id)}
+              className={`shrink-0 px-3.5 py-2.5 rounded-2xl border transition-all flex flex-col justify-between min-w-[130px] relative cursor-pointer hover:shadow-md ${
                 isTurn
                   ? 'bg-amber-50/90 border-amber-400 ring-2 ring-amber-400/40 text-slate-950 shadow-sm scale-[1.02]'
                   : isHighest
                   ? 'bg-emerald-50/90 border-emerald-500 text-emerald-950 ring-1 ring-emerald-500/30'
-                  : 'bg-white/90 border-slate-200 text-slate-800 shadow-xs'
+                  : 'bg-white/90 border-slate-200 text-slate-800 shadow-xs hover:border-amber-300'
               } ${isSquadFull ? 'opacity-40 grayscale' : ''}`}
+              title="Click para ver el plantel actual de este manager"
             >
               <div className="flex items-center justify-between gap-1.5">
                 <div className="flex items-center gap-1.5 min-w-0">
@@ -655,6 +660,76 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
           )}
         </div>
       </div>
+
+      {/* Modal de Plantel del Manager */}
+      {inspectingBuyer && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in"
+          onClick={() => setInspectingBuyerId(null)}
+        >
+          <div
+            className="bg-white rounded-3xl p-6 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl border border-slate-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-lg font-black text-slate-900 uppercase font-display flex items-center gap-2">
+                  <span>👔</span>
+                  <span>Plantel de {inspectingBuyer.name}</span>
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Presupuesto restante: <strong className="text-amber-600 font-mono font-bold">${inspectingBuyer.budget}</strong> • {inspectingBuyer.squad.length}/{config.targetSquadSize} fichajes
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setInspectingBuyerId(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-500 font-bold transition-colors cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {inspectingBuyer.squad.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                Este manager aún no ha ganado ninguna subasta.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {inspectingBuyer.squad.map((item, i) => (
+                  <div
+                    key={i}
+                    className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200 flex items-center gap-3 shadow-xs"
+                  >
+                    <FCMobileThumbnail
+                      cardBgUrl={item.version.cardBgUrl}
+                      imageDataUrl={item.version.imageDataUrl}
+                      grl={item.version.grl}
+                      posicion={item.version.posicion}
+                      playerName={item.playerName}
+                      sizeClassName="w-14 h-14"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[9px] px-1.5 py-0.5 rounded font-black bg-amber-100 text-amber-900 font-display">
+                          {item.version.tier}
+                        </span>
+                        <h4 className="text-xs font-black text-slate-900 truncate uppercase font-display">
+                          {item.playerName}
+                        </h4>
+                      </div>
+                      <div className="text-[10px] text-slate-500 mt-1 flex items-center justify-between font-mono">
+                        <span>Pagado: <strong className="text-amber-600">${item.paidPrice}</strong></span>
+                        <span className="text-slate-400">(Val: ${item.version.value})</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

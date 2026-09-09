@@ -3,6 +3,7 @@ import { SportsApiPlayer, Tier, DeckType, Player } from '../types';
 import { processImageBackgroundRemoval } from '../services/backgroundRemoval';
 import { fetchPlayerImageBlob } from '../services/sportsApi';
 import { fetchPlayersFromSupabase } from '../services/supabasePlayers';
+import { FCMobileThumbnail } from './FCMobileThumbnail';
 import { getTierStyle, DECK_LABELS } from '../utils/tierColors';
 
 interface AdminScreenProps {
@@ -534,19 +535,14 @@ export const AdminScreen: React.FC<AdminScreenProps> = ({
                   className="bg-white border border-slate-200/90 rounded-2xl p-3.5 flex items-center gap-3 hover:border-amber-300 hover:shadow-md transition-all"
                 >
                   {/* Foto de Supabase Storage */}
-                  <div className="relative w-12 h-16 rounded-xl overflow-hidden shrink-0 border border-slate-300 flex items-center justify-center bg-slate-900 shadow-xs">
-                    {mainVer?.cardBgUrl && (
-                      <img src={mainVer.cardBgUrl} alt="Card BG" className="absolute inset-0 w-full h-full object-cover" />
-                    )}
-                    {mainVer?.imageDataUrl ? (
-                      <img src={mainVer.imageDataUrl} alt={p.name} className="relative z-10 max-h-[85%] max-w-[90%] object-contain" />
-                    ) : null}
-                    {mainVer?.grl && (
-                      <span className="absolute top-0.5 left-1 z-20 text-[9px] font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] font-display">
-                        {mainVer.grl}
-                      </span>
-                    )}
-                  </div>
+                  <FCMobileThumbnail
+                    cardBgUrl={mainVer?.cardBgUrl}
+                    imageDataUrl={mainVer?.imageDataUrl}
+                    grl={mainVer?.grl}
+                    posicion={mainVer?.posicion}
+                    playerName={p.name}
+                    sizeClassName="w-14 h-14 sm:w-16 sm:h-16"
+                  />
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 mb-0.5">

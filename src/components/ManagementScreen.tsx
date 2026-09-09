@@ -9,6 +9,8 @@ import {
   exportDatabaseJSON,
   importDatabaseJSON,
 } from '../services/db';
+import { fetchPlayersFromSupabase } from '../services/supabasePlayers';
+import { FCMobileThumbnail } from './FCMobileThumbnail';
 import { getTierStyle, DECK_LABELS } from '../utils/tierColors';
 
 interface QueueItem {
@@ -49,11 +51,22 @@ export const ManagementScreen: React.FC<ManagementScreenProps> = ({
 
   const loadPlayers = async () => {
     try {
-      const data = await getAllPlayers();
-      setPlayers(data);
+      const supabaseData = await fetchPlayersFromSupabase();
+      if (supabaseData && supabaseData.length > 0) {
+        setPlayers(supabaseData);
+      } else {
+        const data = await getAllPlayers();
+        setPlayers(data);
+      }
       onPlayersUpdated();
     } catch (err) {
-      console.error('Error cargando jugadores:', err);
+      console.error('Error cargando jugadores desde Supabase, intentando local:', err);
+      try {
+        const localData = await getAllPlayers();
+        setPlayers(localData);
+      } catch (localErr) {
+        console.error('Error cargando jugadores localmente:', localErr);
+      }
     }
   };
 
@@ -685,14 +698,15 @@ export const ManagementScreen: React.FC<ManagementScreenProps> = ({
                           key={ver.id}
                           className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200"
                         >
-                          {/* Miniatura */}
-                          <div className="w-12 h-14 bg-checkerboard rounded-lg overflow-hidden flex items-center justify-center shrink-0 border border-slate-200">
-                            <img
-                              src={ver.imageDataUrl}
-                              alt={ver.versionTag}
-                              className="max-h-full max-w-full object-contain"
-                            />
-                          </div>
+                          {/* Miniatura Oficial FC Mobile */}
+                          <FCMobileThumbnail
+                            cardBgUrl={ver.cardBgUrl}
+                            imageDataUrl={ver.imageDataUrl}
+                            grl={ver.grl}
+                            posicion={ver.posicion}
+                            playerName={player.name}
+                            sizeClassName="w-14 h-14 sm:w-16 sm:h-16"
+                          />
 
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-1.5">

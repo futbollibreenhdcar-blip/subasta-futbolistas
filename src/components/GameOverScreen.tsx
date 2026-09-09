@@ -1,5 +1,6 @@
 import React from 'react';
 import { Buyer, BoughtPlayer } from '../types';
+import { FCMobileThumbnail } from './FCMobileThumbnail';
 
 interface GameOverScreenProps {
   buyers: Buyer[];
@@ -149,25 +150,14 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
                 </div>
 
                 <div className="p-3 bg-white border border-rose-200 rounded-2xl flex items-center gap-3.5 shadow-xs">
-                  <div className="relative w-12 h-16 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-slate-300 shadow-xs bg-slate-900">
-                    {(globalWorstPurchase as BoughtPlayer).version.cardBgUrl && (
-                      <img
-                        src={(globalWorstPurchase as BoughtPlayer).version.cardBgUrl}
-                        alt="Card BG"
-                        className="absolute inset-0 w-full h-full object-cover"
-                      />
-                    )}
-                    <img
-                      src={(globalWorstPurchase as BoughtPlayer).version.imageDataUrl}
-                      alt={(globalWorstPurchase as BoughtPlayer).playerName}
-                      className="relative z-10 max-h-[85%] max-w-[90%] object-contain drop-shadow-md"
-                    />
-                    {(globalWorstPurchase as BoughtPlayer).version.grl && (
-                      <span className="absolute top-0.5 left-1 z-20 text-[9px] font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] font-display">
-                        {(globalWorstPurchase as BoughtPlayer).version.grl}
-                      </span>
-                    )}
-                  </div>
+                  <FCMobileThumbnail
+                    cardBgUrl={(globalWorstPurchase as BoughtPlayer).version.cardBgUrl}
+                    imageDataUrl={(globalWorstPurchase as BoughtPlayer).version.imageDataUrl}
+                    grl={(globalWorstPurchase as BoughtPlayer).version.grl}
+                    posicion={(globalWorstPurchase as BoughtPlayer).version.posicion}
+                    playerName={(globalWorstPurchase as BoughtPlayer).playerName}
+                    sizeClassName="w-14 h-14 sm:w-16 sm:h-16"
+                  />
 
                   <div className="flex-1 min-w-0 text-xs">
                     <h5 className="font-black text-slate-900 truncate uppercase font-display">
@@ -266,25 +256,14 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
                         className="bg-slate-50 border border-slate-200 rounded-2xl p-3 flex flex-col justify-between shadow-xs hover:border-slate-300 transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="relative w-12 h-16 rounded-xl overflow-hidden flex items-center justify-center shrink-0 border border-slate-300 shadow-xs bg-slate-900">
-                            {item.version.cardBgUrl && (
-                              <img
-                                src={item.version.cardBgUrl}
-                                alt="Card BG"
-                                className="absolute inset-0 w-full h-full object-cover"
-                              />
-                            )}
-                            <img
-                              src={item.version.imageDataUrl}
-                              alt={item.playerName}
-                              className="relative z-10 max-h-[85%] max-w-[90%] object-contain drop-shadow-md"
-                            />
-                            {item.version.grl && (
-                              <span className="absolute top-0.5 left-1 z-20 text-[9px] font-black text-amber-300 drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] font-display">
-                                {item.version.grl}
-                              </span>
-                            )}
-                          </div>
+                          <FCMobileThumbnail
+                            cardBgUrl={item.version.cardBgUrl}
+                            imageDataUrl={item.version.imageDataUrl}
+                            grl={item.version.grl}
+                            posicion={item.version.posicion}
+                            playerName={item.playerName}
+                            sizeClassName="w-14 h-14 sm:w-16 sm:h-16"
+                          />
 
                           <div className="min-w-0 flex-1">
                             <span className="text-[9px] px-2 py-0.5 rounded-md font-black bg-white border border-slate-200 text-amber-700 font-display">

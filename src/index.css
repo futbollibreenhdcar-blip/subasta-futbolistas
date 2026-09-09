@@ -3,6 +3,19 @@
 @theme {
   --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
   --font-display: "Outfit", system-ui, -apple-system, sans-serif;
+  --font-fcmobile: "CruyffSansCondensed-Bold", "DIN Alternate", "Impact", sans-serif;
+}
+
+@font-face {
+  font-family: 'CruyffSansCondensed-Bold';
+  src: url('https://fonts.frzdb.net/CruyffSansCondensed-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+.font-fcmobile {
+  font-family: var(--font-fcmobile);
 }
 
 :root {
