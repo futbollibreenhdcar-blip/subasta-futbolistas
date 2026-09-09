@@ -116,6 +116,9 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
     const chosenVersion = matchingVersions[randomVersionIndex];
 
     await preloadImage(chosenVersion.imageDataUrl);
+    if (chosenVersion.cardBgUrl) {
+      await preloadImage(chosenVersion.cardBgUrl);
+    }
 
     const firstEligibleIdx = currentBuyersState.findIndex(
       (b) => b.squad.length < config.targetSquadSize
@@ -475,6 +478,12 @@ export const AuctionScreen: React.FC<AuctionScreenProps> = ({
         <SilhouetteCard
           key={`round-${roundState.roundNumber}-${roundState.version.id}`}
           imageDataUrl={roundState.version.imageDataUrl}
+          cardBgUrl={roundState.version.cardBgUrl}
+          flagUrl={roundState.version.flagUrl}
+          clubUrl={roundState.version.clubUrl}
+          grl={roundState.version.grl}
+          posicion={roundState.version.posicion}
+          evento={roundState.version.evento}
           tier={roundState.version.tier}
           playerName={roundState.player.name}
           versionTag={roundState.version.versionTag}

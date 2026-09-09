@@ -4,17 +4,24 @@ export type DeckType = 'leyendas' | 'estrellas_actuales' | 'arqueros' | 'retirad
 
 export interface PlayerVersion {
   id: string;             // UUID único de la versión
-  versionTag: string;     // ej. "Prime 2016 - Juventus"
+  versionTag: string;     // ej. "TOTS 26 - Real Madrid"
   tier: Tier;             // S, A, B, C, D
   value: number;          // Valor numérico estimado (ej. 95)
   decks: DeckType[];      // Mazos a los que pertenece (puede ser más de uno)
-  imageDataUrl: string;   // PNG transparente base64
+  imageDataUrl: string;   // Recorte de acción del jugador (FC Mobile PNG)
+  cardBgUrl?: string;     // Arte de fondo del evento de FC Mobile
+  flagUrl?: string;       // Bandera del país
+  clubUrl?: string;       // Escudo de club o programa
+  grl?: number;           // Media oficial FC Mobile (ej. 120)
+  posicion?: string;      // Posición (ST, CB, RW, etc.)
+  evento?: string;        // Nombre del evento (TOTS, Icons, Heroes, etc.)
   posicionPista?: string;
   continentePista?: string;
   decadaPista?: string;
   revisar?: boolean;
   createdAt: number;
 }
+
 
 export interface Player {
   id: string;             // UUID único del jugador
