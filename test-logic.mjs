@@ -158,6 +158,24 @@ assert.strictEqual(worstBuyer.name, 'Manager Despilfarrador');
 assert.strictEqual(maxOver, 100);
 console.log('✅ Cálculo de rankings y premios: CORRECTO');
 
+console.log('\n--- TEST 4: Regla Obligatoria de 11 Fichajes (Once Titular FUT) ---');
+const TARGET_SQUAD_SIZE = 11;
+const testSquadManagers = [
+  { id: 'm1', name: 'DT 1', squad: new Array(10).fill({ paidPrice: 10, version: { value: 10 } }) },
+  { id: 'm2', name: 'DT 2', squad: new Array(11).fill({ paidPrice: 10, version: { value: 10 } }) },
+];
+
+// m2 ya tiene 11 futbolistas (plantel completo), por lo que debe quedar inactivo
+let activeList = testSquadManagers.filter(m => m.squad.length < TARGET_SQUAD_SIZE);
+assert.strictEqual(activeList.length, 1);
+assert.strictEqual(activeList[0].id, 'm1');
+
+// Cuando m1 ficha su jugador #11, ambos están completos y la subasta termina
+testSquadManagers[0].squad.push({ paidPrice: 10, version: { value: 10 } });
+activeList = testSquadManagers.filter(m => m.squad.length < TARGET_SQUAD_SIZE);
+assert.strictEqual(activeList.length, 0);
+console.log('✅ Regla de 11 fichajes obligatorios por manager: CORRECTO');
+
 console.log('\n=======================================');
-console.log(' TODOS LOS TESTS DE REGLAS PASARON (3/3) ');
+console.log(' TODOS LOS TESTS DE REGLAS PASARON (4/4) ');
 console.log('=======================================');

@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Player, AppView, AuctionGameConfig, Buyer } from './types';
+import { Player, AppView, AuctionGameConfig, Buyer, DeckType } from './types';
 import { fetchPlayersFromSupabase } from './services/supabasePlayers';
+import {
+  createRoom,
+  joinRoom,
+  RoomState,
+  RoomParticipant,
+} from './services/realtimeRoom';
 import { Navbar } from './components/Navbar';
 import { SetupScreen } from './components/SetupScreen';
 import { ManagementScreen } from './components/ManagementScreen';
@@ -8,11 +14,17 @@ import { ImportScreen } from './components/ImportScreen';
 import { AdminScreen } from './components/AdminScreen';
 import { AuctionScreen } from './components/AuctionScreen';
 import { GameOverScreen } from './components/GameOverScreen';
+import { OnlineHostScreen } from './components/OnlineHostScreen';
+import { OnlinePlayerScreen } from './components/OnlinePlayerScreen';
 
 export const App: React.FC = () => {
-  // Si la URL es /admin, entrar directamente a la vista de administración
+  // Detectar si la URL contiene código de sala (?sala=XXXX o ?code=XXXX)
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialJoinCode = urlParams.get('sala') || urlParams.get('code') || undefined;
+
   const [currentView, setCurrentView] = useState<AppView>(() => {
-    return window.location.pathname === '/admin' ? 'admin' : 'setup';
+    if (window.location.pathname === '/admin') return 'admin';
+    return 'setup';
   });
 
   const [players, setPlayers] = useState<Player[]>([]);
@@ -23,7 +35,11 @@ export const App: React.FC = () => {
     endReason: string;
   } | null>(null);
 
-  // Cargar jugadores desde Supabase mediante SELECT público (sin IndexedDB)
+  // Estados de Partida Online en Tiempo Real
+  const [onlineRoom, setOnlineRoom] = useState<RoomState | null>(null);
+  const [onlineParticipant, setOnlineParticipant] = useState<RoomParticipant | null>(null);
+
+  // Cargar jugadores desde Supabase
   const fetchPlayers = async () => {
     try {
       const data = await fetchPlayersFromSupabase();
@@ -37,8 +53,8 @@ export const App: React.FC = () => {
     fetchPlayers();
   }, []);
 
-  // Al iniciar partida, filtrar por el mazo elegido desde Supabase y cachear en memoria
-  const handleStartGame = async (config: AuctionGameConfig) => {
+  // Al iniciar partida local tradicional
+  const handleStartLocalGame = async (config: AuctionGameConfig) => {
     try {
       const deckPlayers = await fetchPlayersFromSupabase(config.selectedDeck);
       setGameConfig(config);
@@ -49,6 +65,33 @@ export const App: React.FC = () => {
     }
   };
 
+  // Crear sala online como Host (pantalla central / PC / TV)
+  const handleCreateOnlineRoom = async (config: {
+    initialBudget: number;
+    minIncrement: number;
+    selectedDeck: DeckType;
+  }) => {
+    try {
+      const room = await createRoom(config);
+      setOnlineRoom(room);
+      setCurrentView('host_online');
+    } catch (err: any) {
+      alert('Error al crear sala online: ' + err.message);
+    }
+  };
+
+  // Unirse a una sala online desde el celular
+  const handleJoinOnlineRoom = async (code: string, playerName: string) => {
+    try {
+      const { participant, room } = await joinRoom(code, playerName);
+      setOnlineRoom(room);
+      setOnlineParticipant(participant);
+      setCurrentView('player_online');
+    } catch (err: any) {
+      alert('No se pudo conectar a la sala: ' + err.message);
+    }
+  };
+
   const handleGameOver = (finalBuyers: Buyer[], endReason: string) => {
     setGameOverData({ buyers: finalBuyers, endReason });
     setCurrentView('gameover');
@@ -56,11 +99,15 @@ export const App: React.FC = () => {
 
   const handlePlayAgain = () => {
     setGameOverData(null);
+    setOnlineRoom(null);
+    setOnlineParticipant(null);
     setCurrentView('setup');
   };
 
   const handleAbortGame = () => {
     setGameOverData(null);
+    setOnlineRoom(null);
+    setOnlineParticipant(null);
     setCurrentView('setup');
   };
 
@@ -73,26 +120,57 @@ export const App: React.FC = () => {
         <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-sky-400/10 rounded-full blur-3xl" />
       </div>
 
-      <Navbar
-        currentView={currentView}
-        onNavigate={(view) => {
-          if (view === 'admin') {
-            window.history.pushState({}, '', '/admin');
-          } else if (window.location.pathname === '/admin') {
-            window.history.pushState({}, '', '/');
-          }
-          setCurrentView(view);
-        }}
-        totalPlayersCount={players.length}
-      />
+      {/* No mostrar Navbar en la pantalla del celular para maximizar espacio táctil */}
+      {currentView !== 'player_online' && (
+        <Navbar
+          currentView={currentView}
+          onNavigate={(view) => {
+            if (view === 'admin') {
+              window.history.pushState({}, '', '/admin');
+            } else if (window.location.pathname === '/admin') {
+              window.history.pushState({}, '', '/');
+            }
+            setCurrentView(view);
+          }}
+          totalPlayersCount={players.length}
+        />
+      )}
 
       <main className="flex-1 relative z-10">
         {currentView === 'setup' && (
           <SetupScreen
             players={players}
-            onStartGame={handleStartGame}
+            onStartGame={handleStartLocalGame}
             onGoToManagement={() => setCurrentView('management')}
             onGoToImport={() => setCurrentView('import')}
+            onCreateOnlineRoom={handleCreateOnlineRoom}
+            onJoinOnlineRoom={handleJoinOnlineRoom}
+            initialJoinCode={initialJoinCode}
+          />
+        )}
+
+        {/* Pantalla del Host Online (PC / TV) */}
+        {currentView === 'host_online' && onlineRoom && (
+          <OnlineHostScreen
+            initialRoom={onlineRoom}
+            allPlayers={players}
+            onExitRoom={() => {
+              setOnlineRoom(null);
+              setCurrentView('setup');
+            }}
+          />
+        )}
+
+        {/* Pantalla del Jugador Móvil (Celular) */}
+        {currentView === 'player_online' && onlineRoom && onlineParticipant && (
+          <OnlinePlayerScreen
+            initialRoom={onlineRoom}
+            participant={onlineParticipant}
+            onExit={() => {
+              setOnlineRoom(null);
+              setOnlineParticipant(null);
+              setCurrentView('setup');
+            }}
           />
         )}
 

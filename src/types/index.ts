@@ -54,7 +54,15 @@ export interface AuctionGameConfig {
   selectedDeck: DeckType;
 }
 
-export type AppView = 'setup' | 'auction' | 'gameover' | 'management' | 'import' | 'admin';
+export type AppView =
+  | 'setup'
+  | 'auction'
+  | 'gameover'
+  | 'management'
+  | 'import'
+  | 'admin'
+  | 'host_online'
+  | 'player_online';
 
 export interface SportsApiPlayer {
   idPlayer: string;
