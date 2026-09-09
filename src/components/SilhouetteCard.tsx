@@ -129,7 +129,7 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
           <>
             {/* C1. RECTÁNGULO NEGRO TAPANDO GRL Y POSICIÓN (ARRIBA A LA IZQUIERDA) */}
             <div
-              className="absolute top-[4.5%] left-[13%] w-[24%] h-[28%] bg-black/95 border border-slate-800/80 rounded-xl shadow-2xl flex flex-col items-center justify-center pointer-events-none z-20 backdrop-blur-xs"
+              className="absolute top-[6%] left-[15%] w-[22%] h-[27%] bg-black/95 border border-slate-800/80 rounded-xl shadow-2xl flex flex-col items-center justify-center pointer-events-none z-20 backdrop-blur-xs"
               title="GRL y Posición Ocultos con Cuadro Negro"
             >
               <span className="text-amber-400 text-base">🔒</span>
@@ -138,7 +138,7 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
 
             {/* C2. RECTÁNGULO NEGRO TAPANDO BANDERA, CLUB Y NOMBRE (ZONA INFERIOR) */}
             <div
-              className="absolute top-[67%] left-[18%] w-[64%] h-[18%] bg-black/95 border border-slate-800/80 rounded-xl shadow-2xl flex items-center justify-center pointer-events-none z-20 px-2 text-center backdrop-blur-xs"
+              className="absolute top-[67%] left-[17%] w-[66%] h-[19%] bg-black/95 border border-slate-800/80 rounded-xl shadow-2xl flex items-center justify-center pointer-events-none z-20 px-2 text-center backdrop-blur-xs"
               title="País, Club y Nombre Ocultos con Cuadro Negro"
             >
               <div className="flex flex-col items-center">
@@ -155,32 +155,32 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
           /* D. ELEMENTOS REVELADOS EN ALTA DEFINICIÓN EN SUS POSICIONES OFICIALES */
           <>
             {/* D1 & D2. GRL Y POSICIÓN OFICIALES FC MOBILE (TEXTO BLANCO PURO APILADO SIN FONDOS) */}
-            <div className="absolute top-[4%] left-[13%] w-[25%] flex flex-col items-center justify-center leading-none pointer-events-none z-20 font-fcmobile select-none animate-fade-in">
-              <span className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+            <div className="absolute top-[6.5%] left-[16%] w-[20%] flex flex-col items-center justify-center leading-none pointer-events-none z-20 font-fcmobile select-none animate-fade-in">
+              <span className="text-3xl sm:text-4xl md:text-5xl font-bold text-white tracking-tight drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
                 {grl}
               </span>
-              <span className="text-xs sm:text-sm md:text-base font-bold text-white uppercase tracking-wider drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] mt-0.5">
+              <span className="text-xs sm:text-sm md:text-base font-bold text-white uppercase tracking-wider drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] mt-0.5">
                 {posicion}
               </span>
             </div>
 
             {/* D3. BANDERA NACIONAL */}
             {flagUrl && (
-              <div className="absolute top-[72%] left-[24%] w-[11%] h-[8%] z-20 pointer-events-none rounded-xs overflow-hidden border border-white/30 shadow-md animate-fade-in">
+              <div className="absolute top-[75%] left-[25%] w-[11%] h-[7.5%] z-20 pointer-events-none rounded-xs overflow-hidden border border-white/30 shadow-md animate-fade-in">
                 <img src={flagUrl} alt="Bandera" className="w-full h-full object-cover" />
               </div>
             )}
 
             {/* D4. ESCUDO DE CLUB / PROGRAMA */}
             {clubUrl && (
-              <div className="absolute top-[72%] left-[65%] w-[11%] h-[8%] z-20 pointer-events-none p-0.5 flex items-center justify-center animate-fade-in">
+              <div className="absolute top-[75%] left-[64%] w-[11%] h-[7.5%] z-20 pointer-events-none p-0.5 flex items-center justify-center animate-fade-in">
                 <img src={clubUrl} alt="Club" className="w-full h-full object-contain drop-shadow-md" />
               </div>
             )}
 
-            {/* D5. NOMBRE DEL JUGADOR */}
-            <div className="absolute top-[66%] left-0 right-0 z-20 pointer-events-none text-center px-4 animate-fade-in">
-              <span className="inline-block bg-slate-950/80 px-2.5 py-0.5 rounded-lg border border-amber-400/60 text-xs sm:text-sm font-black text-transparent bg-gradient-to-r from-amber-200 via-white to-amber-300 bg-clip-text uppercase tracking-tight font-display drop-shadow-md">
+            {/* D5. NOMBRE DEL JUGADOR ESTILO FC MOBILE */}
+            <div className="absolute top-[68%] left-0 right-0 z-20 pointer-events-none text-center px-4 animate-fade-in">
+              <span className="inline-block bg-black/85 backdrop-blur-xs px-3.5 py-0.5 rounded-lg border border-white/20 text-xs sm:text-sm font-bold text-white uppercase tracking-wide font-fcmobile drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)]">
                 {playerName}
               </span>
             </div>

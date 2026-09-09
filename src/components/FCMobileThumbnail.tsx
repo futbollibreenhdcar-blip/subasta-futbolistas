@@ -46,7 +46,7 @@ export const FCMobileThumbnail: React.FC<FCMobileThumbnailProps> = ({
 
       {/* 3. GRL y Posición Oficiales de FC Mobile en la esquina superior izquierda */}
       {grl !== undefined && (
-        <div className="absolute top-[4%] left-[12%] w-[26%] flex flex-col items-center justify-center leading-none z-20 pointer-events-none font-fcmobile">
+        <div className="absolute top-[6.5%] left-[16%] w-[20%] flex flex-col items-center justify-center leading-none z-20 pointer-events-none font-fcmobile">
           <span className="text-[11px] sm:text-xs font-bold text-white tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.95)]">
             {grl}
           </span>
