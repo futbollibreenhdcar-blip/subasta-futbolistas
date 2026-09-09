@@ -68,11 +68,6 @@ export type AppView =
   | 'setup'
   | 'auction'
   | 'gameover'
-  | 'management'
-  | 'import'
-  | 'admin'
-  | 'host_online'
-  | 'player_online'
   | 'online_room';
 
 export interface SportsApiPlayer {

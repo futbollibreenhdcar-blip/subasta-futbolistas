@@ -9,14 +9,13 @@ interface GameOverScreenProps {
   buyers: Buyer[];
   endReason: string;
   onPlayAgain: () => void;
-  onGoToManagement: () => void;
+  onGoToManagement?: () => void;
 }
 
 export const GameOverScreen: React.FC<GameOverScreenProps> = ({
   buyers,
   endReason,
   onPlayAgain,
-  onGoToManagement,
 }) => {
   const [viewMode, setViewMode] = useState<'pitch' | 'list'>('pitch');
   const [activePitchManagerId, setActivePitchManagerId] = useState<string>(buyers[0]?.id || '');
@@ -584,16 +583,9 @@ export const GameOverScreen: React.FC<GameOverScreenProps> = ({
       <div className="flex flex-col sm:flex-row justify-center items-center gap-3.5 pt-6 border-t border-slate-200">
         <button
           onClick={onPlayAgain}
-          className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 hover:brightness-105 active:scale-[0.98] text-slate-950 font-black text-sm rounded-2xl transition-all uppercase tracking-wider shadow-lg shadow-amber-400/25 font-display"
+          className="w-full sm:w-auto px-8 py-4 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 hover:brightness-105 active:scale-[0.98] text-slate-950 font-black text-sm rounded-2xl transition-all uppercase tracking-wider shadow-lg shadow-amber-400/25 font-display cursor-pointer"
         >
           JUGAR OTRA PARTIDA →
-        </button>
-
-        <button
-          onClick={onGoToManagement}
-          className="w-full sm:w-auto px-6 py-4 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold text-xs rounded-2xl transition-all uppercase font-display shadow-xs"
-        >
-          ADMINISTRAR CATÁLOGO
         </button>
       </div>
     </div>

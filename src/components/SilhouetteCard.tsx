@@ -140,17 +140,17 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
               <span className="text-[10px] text-slate-400 font-mono font-black tracking-widest mt-0.5">???</span>
             </div>
 
-            {/* C2. RECTÁNGULO NEGRO TAPANDO BANDERA, CLUB Y NOMBRE (ZONA INFERIOR) */}
+            {/* C2. RECTÁNGULO NEGRO TAPANDO BANDERA, CLUB, PROGRAMA Y NOMBRE (ZONA INFERIOR) */}
             <div
               className="absolute top-[67%] left-[17%] w-[66%] h-[19%] bg-black/95 border border-slate-800/80 rounded-xl shadow-2xl flex items-center justify-center pointer-events-none z-20 px-2 text-center backdrop-blur-xs"
-              title="País, Club y Nombre Ocultos con Cuadro Negro"
+              title="País, Club, Programa y Nombre Ocultos con Cuadro Negro"
             >
               <div className="flex flex-col items-center">
                 <span className="text-[11px] font-black text-amber-400 uppercase tracking-wider font-display">
                   ⚡ ¿QUIÉN ES? ⚡
                 </span>
-                <span className="text-[9px] text-slate-400 font-medium">
-                  {evento}
+                <span className="text-[9px] text-slate-500 font-mono tracking-widest mt-0.5">
+                  [ CARTA OCULTA ]
                 </span>
               </div>
             </div>
@@ -168,17 +168,35 @@ export const SilhouetteCard: React.FC<SilhouetteCardProps> = ({
               </span>
             </div>
 
-            {/* D3. BANDERA NACIONAL */}
+            {/* D3. BANDERA NACIONAL (ALTA DEFINICIÓN) */}
             {flagUrl && (
-              <div className="absolute top-[75%] left-[25%] w-[11%] h-[7.5%] z-20 pointer-events-none rounded-xs overflow-hidden border border-white/30 shadow-md animate-fade-in">
-                <img src={flagUrl} alt="Bandera" className="w-full h-full object-cover" />
+              <div className="absolute top-[74.5%] left-[23%] w-[13%] h-[8%] z-20 pointer-events-none rounded-md overflow-hidden border border-white/40 shadow-lg animate-fade-in bg-slate-900 flex items-center justify-center">
+                <img
+                  src={flagUrl}
+                  alt="Bandera"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
               </div>
             )}
 
-            {/* D4. ESCUDO DE CLUB / PROGRAMA */}
-            {clubUrl && (
-              <div className="absolute top-[75%] left-[64%] w-[11%] h-[7.5%] z-20 pointer-events-none p-0.5 flex items-center justify-center animate-fade-in">
-                <img src={clubUrl} alt="Club" className="w-full h-full object-contain drop-shadow-md" />
+            {/* D4. ESCUDO DE CLUB / LOGO DEL PROGRAMA */}
+            {clubUrl ? (
+              <div className="absolute top-[74.5%] left-[64%] w-[13%] h-[8%] z-20 pointer-events-none p-0.5 flex items-center justify-center animate-fade-in">
+                <img
+                  src={clubUrl}
+                  alt="Club"
+                  className="w-full h-full object-contain drop-shadow-md"
+                  onError={(e) => {
+                    (e.currentTarget as HTMLElement).style.display = 'none';
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="absolute top-[75%] left-[63%] z-20 pointer-events-none px-1.5 py-0.5 rounded bg-slate-900/80 border border-white/20 text-[8px] font-black text-amber-400 uppercase tracking-widest font-display animate-fade-in">
+                {evento}
               </div>
             )}
 

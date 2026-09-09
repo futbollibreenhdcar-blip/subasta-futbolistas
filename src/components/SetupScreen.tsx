@@ -6,8 +6,6 @@ import { StarTokenIcon } from './StarTokenIcon';
 interface SetupScreenProps {
   players: Player[];
   onStartGame: (config: AuctionGameConfig) => void;
-  onGoToManagement: () => void;
-  onGoToImport?: () => void;
   onCreateOnlineRoom?: (config: {
     hostName: string;
     initialBudget: number;
@@ -21,8 +19,6 @@ interface SetupScreenProps {
 export const SetupScreen: React.FC<SetupScreenProps> = ({
   players,
   onStartGame,
-  onGoToManagement,
-  onGoToImport,
   onCreateOnlineRoom,
   onJoinOnlineRoom,
   initialJoinCode,
@@ -547,25 +543,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({
           </div>
 
           {/* 4. Botones de Acción */}
-          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={onGoToManagement}
-                className="text-xs font-bold text-slate-500 hover:text-slate-900 transition-colors"
-              >
-                [ GESTOR MANUAL ]
-              </button>
-              {onGoToImport && (
-                <button
-                  type="button"
-                  onClick={onGoToImport}
-                  className="text-xs font-bold text-emerald-600 hover:text-emerald-700 transition-colors"
-                >
-                  [ IMPORTAR API ]
-                </button>
-              )}
-            </div>
+          <div className="pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-end items-center gap-4">
 
             {mode === 'create_online' ? (
               <button

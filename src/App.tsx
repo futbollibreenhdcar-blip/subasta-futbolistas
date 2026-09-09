@@ -9,9 +9,6 @@ import {
 } from './services/realtimeRoom';
 import { Navbar } from './components/Navbar';
 import { SetupScreen } from './components/SetupScreen';
-import { ManagementScreen } from './components/ManagementScreen';
-import { ImportScreen } from './components/ImportScreen';
-import { AdminScreen } from './components/AdminScreen';
 import { AuctionScreen } from './components/AuctionScreen';
 import { GameOverScreen } from './components/GameOverScreen';
 import { OnlineRoomScreen } from './components/OnlineRoomScreen';
@@ -21,10 +18,7 @@ export const App: React.FC = () => {
   const urlParams = new URLSearchParams(window.location.search);
   const initialJoinCode = urlParams.get('sala') || urlParams.get('code') || undefined;
 
-  const [currentView, setCurrentView] = useState<AppView>(() => {
-    if (window.location.pathname === '/admin') return 'admin';
-    return 'setup';
-  });
+  const [currentView, setCurrentView] = useState<AppView>('setup');
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [gameConfig, setGameConfig] = useState<AuctionGameConfig | null>(null);
@@ -142,17 +136,10 @@ export const App: React.FC = () => {
       </div>
 
       {/* No mostrar Navbar en la pantalla de juego online para maximizar espacio táctil en celular */}
-      {currentView !== 'player_online' && currentView !== 'online_room' && (
+      {currentView !== 'online_room' && (
         <Navbar
           currentView={currentView}
-          onNavigate={(view) => {
-            if (view === 'admin') {
-              window.history.pushState({}, '', '/admin');
-            } else if (window.location.pathname === '/admin') {
-              window.history.pushState({}, '', '/');
-            }
-            setCurrentView(view);
-          }}
+          onNavigate={(view) => setCurrentView(view)}
           totalPlayersCount={players.length}
         />
       )}
@@ -162,8 +149,6 @@ export const App: React.FC = () => {
           <SetupScreen
             players={players}
             onStartGame={handleStartLocalGame}
-            onGoToManagement={() => setCurrentView('management')}
-            onGoToImport={() => setCurrentView('import')}
             onCreateOnlineRoom={handleCreateOnlineRoom}
             onJoinOnlineRoom={handleJoinOnlineRoom}
             initialJoinCode={initialJoinCode}
@@ -186,32 +171,6 @@ export const App: React.FC = () => {
           />
         )}
 
-        {currentView === 'admin' && (
-          <AdminScreen
-            onBackToGame={() => {
-              window.history.pushState({}, '', '/');
-              setCurrentView('setup');
-            }}
-            onPlayersUpdated={fetchPlayers}
-          />
-        )}
-
-        {currentView === 'import' && (
-          <ImportScreen
-            onBack={() => setCurrentView('setup')}
-            onGoToAuction={() => setCurrentView('setup')}
-            onPlayersUpdated={fetchPlayers}
-          />
-        )}
-
-        {currentView === 'management' && (
-          <ManagementScreen
-            onBackToSetup={() => setCurrentView('setup')}
-            onPlayersUpdated={fetchPlayers}
-            onGoToImport={() => setCurrentView('import')}
-          />
-        )}
-
         {currentView === 'auction' && gameConfig && (
           <AuctionScreen
             config={gameConfig}
@@ -226,7 +185,7 @@ export const App: React.FC = () => {
             buyers={gameOverData.buyers}
             endReason={gameOverData.endReason}
             onPlayAgain={handlePlayAgain}
-            onGoToManagement={() => setCurrentView('management')}
+            onGoToManagement={handlePlayAgain}
           />
         )}
       </main>
