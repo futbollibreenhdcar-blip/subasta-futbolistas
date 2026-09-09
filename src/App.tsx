@@ -140,11 +140,6 @@ export const App: React.FC = () => {
           />
         )}
       </main>
-
-      {/* Footer deportivo */}
-      <footer className="relative z-10 border-t border-slate-200/80 py-6 text-center text-xs text-slate-500 font-mono bg-white/70">
-        <p>Subasta a Ciegas de Futbolistas • Conectado a Supabase Database &amp; Storage</p>
-      </footer>
     </div>
   );
 };
