@@ -14,8 +14,7 @@ import { ImportScreen } from './components/ImportScreen';
 import { AdminScreen } from './components/AdminScreen';
 import { AuctionScreen } from './components/AuctionScreen';
 import { GameOverScreen } from './components/GameOverScreen';
-import { OnlineHostScreen } from './components/OnlineHostScreen';
-import { OnlinePlayerScreen } from './components/OnlinePlayerScreen';
+import { OnlineRoomScreen } from './components/OnlineRoomScreen';
 
 export const App: React.FC = () => {
   // Detectar si la URL contiene código de sala (?sala=XXXX o ?code=XXXX)
@@ -51,6 +50,22 @@ export const App: React.FC = () => {
 
   useEffect(() => {
     fetchPlayers();
+
+    // Intentar reconectar si se recargó la página en el celular
+    const savedCode = sessionStorage.getItem('subasta_room_code');
+    const savedName = sessionStorage.getItem('subasta_participant_name');
+    if (savedCode && savedName) {
+      joinRoom(savedCode, savedName)
+        .then(({ participant, room }) => {
+          setOnlineRoom(room);
+          setOnlineParticipant(participant);
+          setCurrentView('online_room');
+        })
+        .catch(() => {
+          sessionStorage.removeItem('subasta_room_code');
+          sessionStorage.removeItem('subasta_participant_name');
+        });
+    }
   }, []);
 
   // Al iniciar partida local tradicional
@@ -65,28 +80,34 @@ export const App: React.FC = () => {
     }
   };
 
-  // Crear sala online como Host (pantalla central / PC / TV)
+  // Crear sala online donde el Host TAMBIÉN juega en su propio dispositivo
   const handleCreateOnlineRoom = async (config: {
+    hostName: string;
     initialBudget: number;
     minIncrement: number;
     selectedDeck: DeckType;
   }) => {
     try {
-      const room = await createRoom(config);
+      const { room, hostParticipant } = await createRoom(config);
       setOnlineRoom(room);
-      setCurrentView('host_online');
+      setOnlineParticipant(hostParticipant);
+      sessionStorage.setItem('subasta_room_code', room.codigo);
+      sessionStorage.setItem('subasta_participant_name', hostParticipant.name);
+      setCurrentView('online_room');
     } catch (err: any) {
       alert('Error al crear sala online: ' + err.message);
     }
   };
 
-  // Unirse a una sala online desde el celular
+  // Unirse a una sala online desde el celular o navegador
   const handleJoinOnlineRoom = async (code: string, playerName: string) => {
     try {
       const { participant, room } = await joinRoom(code, playerName);
       setOnlineRoom(room);
       setOnlineParticipant(participant);
-      setCurrentView('player_online');
+      sessionStorage.setItem('subasta_room_code', room.codigo);
+      sessionStorage.setItem('subasta_participant_name', participant.name);
+      setCurrentView('online_room');
     } catch (err: any) {
       alert('No se pudo conectar a la sala: ' + err.message);
     }
@@ -120,8 +141,8 @@ export const App: React.FC = () => {
         <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-sky-400/10 rounded-full blur-3xl" />
       </div>
 
-      {/* No mostrar Navbar en la pantalla del celular para maximizar espacio táctil */}
-      {currentView !== 'player_online' && (
+      {/* No mostrar Navbar en la pantalla de juego online para maximizar espacio táctil en celular */}
+      {currentView !== 'player_online' && currentView !== 'online_room' && (
         <Navbar
           currentView={currentView}
           onNavigate={(view) => {
@@ -149,24 +170,15 @@ export const App: React.FC = () => {
           />
         )}
 
-        {/* Pantalla del Host Online (PC / TV) */}
-        {currentView === 'host_online' && onlineRoom && (
-          <OnlineHostScreen
-            initialRoom={onlineRoom}
-            allPlayers={players}
-            onExitRoom={() => {
-              setOnlineRoom(null);
-              setCurrentView('setup');
-            }}
-          />
-        )}
-
-        {/* Pantalla del Jugador Móvil (Celular) */}
-        {currentView === 'player_online' && onlineRoom && onlineParticipant && (
-          <OnlinePlayerScreen
+        {/* Pantalla Unificada Online (Cada jugador en su propio Celular o PC) */}
+        {currentView === 'online_room' && onlineRoom && onlineParticipant && (
+          <OnlineRoomScreen
             initialRoom={onlineRoom}
             participant={onlineParticipant}
+            allPlayers={players}
             onExit={() => {
+              sessionStorage.removeItem('subasta_room_code');
+              sessionStorage.removeItem('subasta_participant_name');
               setOnlineRoom(null);
               setOnlineParticipant(null);
               setCurrentView('setup');

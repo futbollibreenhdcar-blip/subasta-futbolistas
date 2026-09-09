@@ -9,6 +9,7 @@ interface SetupScreenProps {
   onGoToManagement: () => void;
   onGoToImport?: () => void;
   onCreateOnlineRoom?: (config: {
+    hostName: string;
     initialBudget: number;
     minIncrement: number;
     selectedDeck: DeckType;
@@ -34,6 +35,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({
   // Estados para Unirse a Sala Online desde el celular
   const [joinCode, setJoinCode] = useState<string>(initialJoinCode || '');
   const [joinPlayerName, setJoinPlayerName] = useState<string>('');
+  const [hostName, setHostName] = useState<string>('');
 
   // Estados para Modo Local
   const [buyers, setBuyers] = useState<Array<{ id: string; name: string }>>([
@@ -110,9 +112,13 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({
     });
   };
 
-  // Crear Sala Online (Host)
+  // Crear Sala Online (Host Manager)
   const handleCreateOnline = () => {
     setErrorMsg(null);
+    if (!hostName.trim()) {
+      setErrorMsg('Por favor ingresa tu nombre de DT / Manager para crear la sala.');
+      return;
+    }
     if (availablePlayersInDeck.length === 0) {
       setErrorMsg(`No hay futbolistas registrados en el mazo "${DECK_LABELS[selectedDeck]}".`);
       return;
@@ -120,6 +126,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({
 
     if (onCreateOnlineRoom) {
       onCreateOnlineRoom({
+        hostName: hostName.trim(),
         initialBudget,
         minIncrement,
         selectedDeck,
@@ -292,6 +299,32 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({
       {/* ========================================================================= */}
       {(mode === 'create_online' || mode === 'local') && (
         <div className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-8 space-y-7 shadow-xl animate-in fade-in zoom-in-95 duration-200">
+          {/* MODO ONLINE: Nombre del DT Creador */}
+          {mode === 'create_online' && (
+            <div className="space-y-3 pb-6 border-b border-slate-100">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-widest text-amber-600 font-display">
+                  TÚ SERÁS UN MANAGER ACTIVO
+                </span>
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider font-display">
+                  TU NOMBRE DE DT (ANFITRIÓN)
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Jugarás en tu propio teléfono o PC junto a tus amigos. No se requiere ninguna pantalla de TV externa.
+                </p>
+              </div>
+
+              <input
+                type="text"
+                maxLength={20}
+                value={hostName}
+                onChange={(e) => setHostName(e.target.value)}
+                placeholder="Ej. DT Gallardo, Scaloni, Mister..."
+                className="w-full px-5 py-3.5 rounded-2xl bg-slate-50 border-2 border-slate-300 focus:border-amber-400 focus:bg-white text-base font-bold text-slate-900 font-display transition-all outline-none"
+              />
+            </div>
+          )}
+
           {/* MODO LOCAL: Lista de Managers en el mismo dispositivo */}
           {mode === 'local' && (
             <div className="space-y-3">
@@ -541,7 +574,7 @@ export const SetupScreen: React.FC<SetupScreenProps> = ({
                 disabled={availablePlayersInDeck.length === 0}
                 className="w-full sm:w-auto px-9 py-4 bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 hover:brightness-105 active:scale-[0.98] disabled:opacity-30 text-slate-950 text-sm font-black rounded-2xl transition-all uppercase tracking-wider shadow-lg shadow-amber-400/25 font-display cursor-pointer flex items-center justify-center gap-2"
               >
-                <span>🌐 CREAR SALA ONLINE (PROYECTAR EN TV) ➔</span>
+                <span>🚀 CREAR SALA Y JUGAR ➔</span>
               </button>
             ) : (
               <button

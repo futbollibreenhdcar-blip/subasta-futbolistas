@@ -72,7 +72,8 @@ export type AppView =
   | 'import'
   | 'admin'
   | 'host_online'
-  | 'player_online';
+  | 'player_online'
+  | 'online_room';
 
 export interface SportsApiPlayer {
   idPlayer: string;

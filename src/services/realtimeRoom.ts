@@ -1,7 +1,8 @@
 import { supabase } from './supabase';
-import type { DeckType, Player, PlayerVersion, Buyer } from '../types';
+import type { DeckType, Player, PlayerVersion, Buyer, BoughtPlayer } from '../types';
 
 export interface RoomParticipant extends Buyer {
+  isHost?: boolean;
   isReady?: boolean;
 }
 
@@ -26,15 +27,17 @@ export interface RoomRoundState {
 export interface RoomState {
   id: string;
   codigo: string;
+  hostId?: string;
   estado: 'esperando' | 'subastando' | 'revelando' | 'finalizado';
   config: {
     initialBudget: number;
     minIncrement: number;
-    targetSquadSize: number; // Siempre 11 fichajes
+    targetSquadSize: number; // Siempre 11 fichajes por equipo
     selectedDeck: DeckType;
   };
   participantes: RoomParticipant[];
   ronda_actual: RoomRoundState | null;
+  usedPlayerIds?: string[];
   historial: string[];
   created_at?: string;
 }
@@ -53,27 +56,43 @@ function generateRoomCode(): string {
 }
 
 /**
- * Crea una nueva sala multijugador para el Anfitrión (Host)
+ * Crea una nueva sala multijugador donde el creador (Host) TAMBIÉN juega como Manager
  */
-export async function createRoom(options?: {
+export async function createRoom(options: {
+  hostName: string;
   initialBudget?: number;
   minIncrement?: number;
   selectedDeck?: DeckType;
-}): Promise<RoomState> {
+}): Promise<{ room: RoomState; hostParticipant: RoomParticipant }> {
   const codigo = generateRoomCode();
+  const initialBudget = options.initialBudget || 500;
+
+  const hostId = `host_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  const hostParticipant: RoomParticipant = {
+    id: hostId,
+    name: options.hostName.trim() || 'DT Creador',
+    budget: initialBudget,
+    initialBudget: initialBudget,
+    squad: [],
+    isHost: true,
+    isReady: true,
+  };
+
   const roomData: RoomState = {
     id: codigo,
     codigo,
+    hostId,
     estado: 'esperando',
     config: {
-      initialBudget: options?.initialBudget || 500,
-      minIncrement: options?.minIncrement || 5,
-      targetSquadSize: 11, // Regla fija: siempre 11 futbolistas
-      selectedDeck: options?.selectedDeck || 'mixto',
+      initialBudget,
+      minIncrement: options.minIncrement || 5,
+      targetSquadSize: 11, // Regla oficial obligatoria: 11 fichajes
+      selectedDeck: options.selectedDeck || 'mixto',
     },
-    participantes: [],
+    participantes: [hostParticipant],
     ronda_actual: null,
-    historial: ['Sala creada. Esperando conexión de managers desde sus celulares...'],
+    usedPlayerIds: [],
+    historial: [`🚀 Sala creada por ${hostParticipant.name}. Invita a tus amigos con el código ${codigo}.`],
   };
 
   const { error } = await supabase.from('salas').insert({
@@ -90,7 +109,7 @@ export async function createRoom(options?: {
     throw new Error('Error al crear sala en Supabase: ' + error.message);
   }
 
-  return roomData;
+  return { room: roomData, hostParticipant };
 }
 
 /**
@@ -109,16 +128,18 @@ export async function getRoom(codigo: string): Promise<RoomState | null> {
   return {
     id: data.id,
     codigo: data.codigo,
+    hostId: data.participantes?.find((p: any) => p.isHost)?.id,
     estado: data.estado,
     config: data.config,
     participantes: data.participantes || [],
     ronda_actual: data.ronda_actual,
+    usedPlayerIds: data.usedPlayerIds || [],
     historial: data.historial || [],
   };
 }
 
 /**
- * Permite a un jugador unirse desde su celular a la sala
+ * Permite a un jugador unirse o reconectarse a la sala desde su celular
  */
 export async function joinRoom(
   codigo: string,
@@ -131,14 +152,16 @@ export async function joinRoom(
     throw new Error(`La sala "${cleanCode}" no existe.`);
   }
 
+  // 1. Si el jugador ya estaba registrado (por nombre o reconexión), recuperamos su perfil
+  const existing = room.participantes.find(
+    (p) => p.name.toLowerCase() === playerName.trim().toLowerCase()
+  );
+  if (existing) {
+    return { participant: existing, room };
+  }
+
+  // 2. Si no estaba y la partida ya empezó, no permite entrar
   if (room.estado !== 'esperando') {
-    // Si la partida ya empezó, verificar si el jugador ya estaba registrado para re-conectarse
-    const existing = room.participantes.find(
-      (p) => p.name.toLowerCase() === playerName.trim().toLowerCase()
-    );
-    if (existing) {
-      return { participant: existing, room };
-    }
     throw new Error('La subasta en esta sala ya ha comenzado.');
   }
 
@@ -146,7 +169,7 @@ export async function joinRoom(
     throw new Error('La sala está completa (máximo 8 managers).');
   }
 
-  // Verificar que el nombre no esté duplicado
+  // Formar nombre único
   let finalName = playerName.trim();
   const nameExists = room.participantes.some(
     (p) => p.name.toLowerCase() === finalName.toLowerCase()
@@ -156,11 +179,12 @@ export async function joinRoom(
   }
 
   const newParticipant: RoomParticipant = {
-    id: crypto.randomUUID ? crypto.randomUUID() : `p_${Date.now()}_${Math.random()}`,
+    id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     name: finalName,
     budget: room.config.initialBudget,
     initialBudget: room.config.initialBudget,
     squad: [],
+    isHost: false,
     isReady: true,
   };
 
@@ -179,14 +203,6 @@ export async function joinRoom(
     })
     .eq('codigo', cleanCode);
 
-  // Emitir evento broadcast para actualización en tiempo real en la pantalla del Host
-  const channel = supabase.channel(`room_${cleanCode}`);
-  await channel.send({
-    type: 'broadcast',
-    event: 'PLAYER_JOINED',
-    payload: { participant: newParticipant, participants: updatedParticipants },
-  });
-
   return {
     participant: newParticipant,
     room: {
@@ -198,37 +214,360 @@ export async function joinRoom(
 }
 
 /**
- * Actualiza el estado de la sala (llamado por el Host durante la partida)
+ * Filtra jugadores elegibles según el mazo seleccionado y que no hayan sido sorteados
  */
-export async function updateRoomState(
-  codigo: string,
-  partial: Partial<RoomState>
-): Promise<void> {
-  const cleanCode = codigo.trim().toUpperCase();
-
-  const updatePayload: Record<string, any> = {
-    updated_at: new Date().toISOString(),
-  };
-
-  if (partial.estado !== undefined) updatePayload.estado = partial.estado;
-  if (partial.config !== undefined) updatePayload.config = partial.config;
-  if (partial.participantes !== undefined) updatePayload.participantes = partial.participantes;
-  if (partial.ronda_actual !== undefined) updatePayload.ronda_actual = partial.ronda_actual;
-  if (partial.historial !== undefined) updatePayload.historial = partial.historial;
-
-  await supabase.from('salas').update(updatePayload).eq('codigo', cleanCode);
-
-  // Notificar por broadcast websocket para respuesta instantánea (<30ms)
-  const channel = supabase.channel(`room_${cleanCode}`);
-  await channel.send({
-    type: 'broadcast',
-    event: 'STATE_CHANGED',
-    payload: partial,
+function getEligiblePlayers(allPlayers: Player[], usedIds: string[], deck: DeckType): Player[] {
+  return allPlayers.filter((p) => {
+    if (usedIds.includes(p.id)) return false;
+    if (deck === 'mixto') return p.versions.length > 0;
+    return p.versions.some((v) => v.decks.includes(deck));
   });
 }
 
 /**
- * Suscribirse a los cambios en tiempo real de una sala
+ * Inicia la subasta sorteando la primera carta para todos los dispositivos
+ */
+export async function startOnlineAuction(room: RoomState, allPlayers: Player[]): Promise<void> {
+  const eligible = getEligiblePlayers(allPlayers, [], room.config.selectedDeck);
+  if (eligible.length === 0) {
+    throw new Error('No hay futbolistas disponibles en este mazo.');
+  }
+
+  const randomPlayer = eligible[Math.floor(Math.random() * eligible.length)];
+  const matchingVersions =
+    room.config.selectedDeck === 'mixto'
+      ? randomPlayer.versions
+      : randomPlayer.versions.filter((v) => v.decks.includes(room.config.selectedDeck));
+  const chosenVersion = matchingVersions[Math.floor(Math.random() * matchingVersions.length)] || randomPlayer.versions[0];
+
+  const firstRound: RoomRoundState = {
+    roundNumber: 1,
+    player: randomPlayer,
+    version: chosenVersion,
+    highestBid: room.config.minIncrement,
+    highestBidderId: null,
+    currentTurnBuyerIndex: 0,
+    consecutivePasses: 0,
+    isDesierta: false,
+    isClosed: false,
+    isRevealed: false,
+    purchasedClue: null,
+  };
+
+  const updatedHistorial = [
+    `⚽ ¡Comenzó la subasta! Ronda 1: Silueta misteriosa de Tier ${chosenVersion.tier} (${chosenVersion.evento}) en el estrado.`,
+    ...room.historial.slice(0, 10),
+  ];
+
+  await supabase
+    .from('salas')
+    .update({
+      estado: 'subastando',
+      ronda_actual: firstRound,
+      historial: updatedHistorial,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('codigo', room.codigo);
+}
+
+/**
+ * Realiza una puja atómica desde el dispositivo del jugador activo
+ */
+export async function placeBidInRoom(
+  room: RoomState,
+  participantId: string,
+  amount: number
+): Promise<void> {
+  if (!room.ronda_actual || room.ronda_actual.isClosed) return;
+
+  const buyer = room.participantes.find((p) => p.id === participantId);
+  if (!buyer || buyer.budget < amount) return;
+
+  const activeBidders = room.participantes.filter(
+    (b) => b.squad.length < room.config.targetSquadSize
+  );
+
+  const nextIdx =
+    activeBidders.length > 0
+      ? (room.ronda_actual.currentTurnBuyerIndex + 1) % activeBidders.length
+      : 0;
+
+  const updatedRound: RoomRoundState = {
+    ...room.ronda_actual,
+    highestBid: amount,
+    highestBidderId: participantId,
+    currentTurnBuyerIndex: nextIdx,
+    consecutivePasses: 0, // Se resetean los pases tras una nueva oferta
+  };
+
+  const updatedHistorial = [
+    `🔥 ${buyer.name} ofertó ${amount} Fichas Estelares.`,
+    ...room.historial.slice(0, 15),
+  ];
+
+  await supabase
+    .from('salas')
+    .update({
+      ronda_actual: updatedRound,
+      historial: updatedHistorial,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('codigo', room.codigo);
+}
+
+/**
+ * Pasa de turno. Si todos los demás pasaron, cierra la ronda y revela la carta.
+ */
+export async function passTurnInRoom(
+  room: RoomState,
+  participantId: string
+): Promise<void> {
+  if (!room.ronda_actual || room.ronda_actual.isClosed) return;
+
+  const buyer = room.participantes.find((p) => p.id === participantId);
+  if (!buyer) return;
+
+  const activeBidders = room.participantes.filter(
+    (b) => b.squad.length < room.config.targetSquadSize
+  );
+
+  const newPasses = room.ronda_actual.consecutivePasses + 1;
+  const newHistorial = [
+    `✋ ${buyer.name} pasó turno.`,
+    ...room.historial.slice(0, 15),
+  ];
+
+  // Caso 1: Nadie ofertó y todos pasaron -> Ronda Desierta
+  if (room.ronda_actual.highestBidderId === null) {
+    if (newPasses >= activeBidders.length) {
+      const closedRound: RoomRoundState = {
+        ...room.ronda_actual,
+        isDesierta: true,
+        isClosed: true,
+        isRevealed: true,
+        consecutivePasses: newPasses,
+      };
+
+      await supabase
+        .from('salas')
+        .update({
+          ronda_actual: closedRound,
+          historial: ['❌ Ronda desierta. Ningún DT ofertó por la silueta.', ...newHistorial],
+          updated_at: new Date().toISOString(),
+        })
+        .eq('codigo', room.codigo);
+      return;
+    }
+  } else {
+    // Caso 2: Hay un mejor postor y todos los demás pasaron -> Adjudicado
+    if (newPasses >= activeBidders.length - 1) {
+      const winner = room.participantes.find(
+        (p) => p.id === room.ronda_actual?.highestBidderId
+      );
+      if (!winner) return;
+
+      const price = room.ronda_actual.highestBid;
+      const boughtItem: BoughtPlayer = {
+        playerId: room.ronda_actual.player.id,
+        playerName: room.ronda_actual.player.name,
+        version: room.ronda_actual.version,
+        paidPrice: price,
+        roundNumber: room.ronda_actual.roundNumber,
+      };
+
+      const updatedParticipants = room.participantes.map((p) => {
+        if (p.id === winner.id) {
+          return {
+            ...p,
+            budget: p.budget - price,
+            squad: [...p.squad, boughtItem],
+          };
+        }
+        return p;
+      });
+
+      const closedRound: RoomRoundState = {
+        ...room.ronda_actual,
+        isClosed: true,
+        isRevealed: true,
+      };
+
+      const finalHistorial = [
+        `🎉 ¡ADJUDICADO! ${winner.name} fichó a ${room.ronda_actual.player.name} por ${price} Fichas.`,
+        ...newHistorial,
+      ];
+
+      await supabase
+        .from('salas')
+        .update({
+          participantes: updatedParticipants,
+          ronda_actual: closedRound,
+          historial: finalHistorial,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('codigo', room.codigo);
+      return;
+    }
+  }
+
+  // Si no se cerró, avanza el turno al siguiente participante
+  const nextIdx =
+    activeBidders.length > 0
+      ? (room.ronda_actual.currentTurnBuyerIndex + 1) % activeBidders.length
+      : 0;
+
+  const updatedRound: RoomRoundState = {
+    ...room.ronda_actual,
+    currentTurnBuyerIndex: nextIdx,
+    consecutivePasses: newPasses,
+  };
+
+  await supabase
+    .from('salas')
+    .update({
+      ronda_actual: updatedRound,
+      historial: newHistorial,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('codigo', room.codigo);
+}
+
+/**
+ * Compra una pista desde el dispositivo
+ */
+export async function buyClueInRoom(
+  room: RoomState,
+  participantId: string,
+  clueType: 'posicion' | 'continente' | 'decada'
+): Promise<void> {
+  if (!room.ronda_actual || room.ronda_actual.isClosed) return;
+
+  const buyer = room.participantes.find((p) => p.id === participantId);
+  if (!buyer) return;
+
+  const clueCost = Math.max(10, Math.round(room.config.initialBudget * 0.05));
+  if (buyer.budget < clueCost) return;
+
+  let clueVal = '';
+  if (clueType === 'posicion') {
+    clueVal = room.ronda_actual.version.posicionPista || room.ronda_actual.version.posicion || 'Campo';
+  } else if (clueType === 'continente') {
+    clueVal = room.ronda_actual.version.continentePista || 'Internacional';
+  } else {
+    clueVal = room.ronda_actual.version.decadaPista || 'Época Actual';
+  }
+
+  const updatedParticipants = room.participantes.map((p) =>
+    p.id === participantId ? { ...p, budget: p.budget - clueCost } : p
+  );
+
+  const updatedRound: RoomRoundState = {
+    ...room.ronda_actual,
+    purchasedClue: {
+      type: clueType,
+      label: `${clueType.toUpperCase()}: ${clueVal}`,
+      buyerName: buyer.name,
+    },
+  };
+
+  await supabase
+    .from('salas')
+    .update({
+      participantes: updatedParticipants,
+      ronda_actual: updatedRound,
+      historial: [
+        `💡 ${buyer.name} desbloqueó la pista de ${clueType.toUpperCase()} (-${clueCost} Fichas)`,
+        ...room.historial.slice(0, 15),
+      ],
+      updated_at: new Date().toISOString(),
+    })
+    .eq('codigo', room.codigo);
+}
+
+/**
+ * Avanza a la siguiente ronda sorteando otro futbolista, o finaliza la subasta
+ */
+export async function advanceNextRoundInRoom(
+  room: RoomState,
+  allPlayers: Player[]
+): Promise<void> {
+  // 1. Chequear si todos los managers completaron sus 11 futbolistas
+  const activeBidders = room.participantes.filter(
+    (b) => b.squad.length < room.config.targetSquadSize
+  );
+
+  if (activeBidders.length === 0) {
+    await supabase
+      .from('salas')
+      .update({
+        estado: 'finalizado',
+        historial: ['🏁 ¡Todos los managers completaron sus 11 fichajes! Partida finalizada.'],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('codigo', room.codigo);
+    return;
+  }
+
+  // 2. Extraer jugadores ya subastados
+  const usedIds: string[] = [];
+  room.participantes.forEach((p) => {
+    p.squad.forEach((item) => usedIds.push(item.playerId));
+  });
+  if (room.ronda_actual) {
+    usedIds.push(room.ronda_actual.player.id);
+  }
+
+  const eligible = getEligiblePlayers(allPlayers, usedIds, room.config.selectedDeck);
+  if (eligible.length === 0) {
+    await supabase
+      .from('salas')
+      .update({
+        estado: 'finalizado',
+        historial: ['🏁 ¡Se agotó el mazo de cartas temático! Partida finalizada.'],
+        updated_at: new Date().toISOString(),
+      })
+      .eq('codigo', room.codigo);
+    return;
+  }
+
+  const randomPlayer = eligible[Math.floor(Math.random() * eligible.length)];
+  const matchingVersions =
+    room.config.selectedDeck === 'mixto'
+      ? randomPlayer.versions
+      : randomPlayer.versions.filter((v) => v.decks.includes(room.config.selectedDeck));
+  const chosenVersion = matchingVersions[Math.floor(Math.random() * matchingVersions.length)] || randomPlayer.versions[0];
+
+  const nextRoundNumber = (room.ronda_actual?.roundNumber || 0) + 1;
+
+  const nextRound: RoomRoundState = {
+    roundNumber: nextRoundNumber,
+    player: randomPlayer,
+    version: chosenVersion,
+    highestBid: room.config.minIncrement,
+    highestBidderId: null,
+    currentTurnBuyerIndex: 0,
+    consecutivePasses: 0,
+    isDesierta: false,
+    isClosed: false,
+    isRevealed: false,
+    purchasedClue: null,
+  };
+
+  await supabase
+    .from('salas')
+    .update({
+      ronda_actual: nextRound,
+      historial: [
+        `⭐ Ronda ${nextRoundNumber}: Nueva silueta en el estrado (Tier ${chosenVersion.tier} • ${chosenVersion.evento}).`,
+        ...room.historial.slice(0, 15),
+      ],
+      updated_at: new Date().toISOString(),
+    })
+    .eq('codigo', room.codigo);
+}
+
+/**
+ * Suscribirse en tiempo real a los cambios de la sala (Postgres Changes + WebSockets)
  */
 export function subscribeToRoom(
   codigo: string,
@@ -237,104 +576,68 @@ export function subscribeToRoom(
 ): () => void {
   const cleanCode = codigo.trim().toUpperCase();
 
-  const channel = supabase.channel(`room_${cleanCode}`, {
-    config: {
-      broadcast: { self: true },
-    },
+  const channel = supabase.channel(`room_sync_${cleanCode}`, {
+    config: { broadcast: { self: true } },
   });
 
-  // 1. Escuchar eventos broadcast ultrarrápidos
-  channel.on('broadcast', { event: '*' }, (message) => {
-    if (onBroadcast) {
-      onBroadcast(message.event, message.payload);
-    }
-    // Si viene STATE_CHANGED o PLAYER_JOINED, podemos refrescar
-    if (message.event === 'STATE_CHANGED' && message.payload) {
-      getRoom(cleanCode).then((updated) => {
-        if (updated) onStateUpdate(updated);
-      });
-    }
-  });
+  if (onBroadcast) {
+    channel.on('broadcast', { event: '*' }, (msg) => {
+      onBroadcast(msg.event, msg.payload);
+    });
+  }
 
-  // 2. Escuchar cambios directos en la fila de Postgres de la tabla `salas`
-  channel.on(
-    'postgres_changes',
-    {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'salas',
-      filter: `codigo=eq.${cleanCode}`,
-    },
-    (payload) => {
-      const row = payload.new as any;
-      if (row) {
-        onStateUpdate({
-          id: row.id,
-          codigo: row.codigo,
-          estado: row.estado,
-          config: row.config,
-          participantes: row.participantes || [],
-          ronda_actual: row.ronda_actual,
-          historial: row.historial || [],
-        });
+  channel
+    .on(
+      'postgres_changes',
+      {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'salas',
+        filter: `codigo=eq.${cleanCode}`,
+      },
+      (payload) => {
+        const row = payload.new as any;
+        if (row) {
+          onStateUpdate({
+            id: row.id,
+            codigo: row.codigo,
+            hostId: row.participantes?.find((p: any) => p.isHost)?.id,
+            estado: row.estado,
+            config: row.config,
+            participantes: row.participantes || [],
+            ronda_actual: row.ronda_actual,
+            historial: row.historial || [],
+          });
+        }
       }
-    }
-  );
+    )
+    .subscribe();
 
-  channel.subscribe();
-
-  // Función de limpieza para desuscribirse
   return () => {
     supabase.removeChannel(channel);
   };
 }
 
-/**
- * Enviar acción de puja desde el celular hacia el canal de la sala
- */
-export async function sendMobileBid(
-  codigo: string,
-  participantId: string,
-  amount: number
-): Promise<void> {
-  const cleanCode = codigo.trim().toUpperCase();
-  const channel = supabase.channel(`room_${cleanCode}`);
-  await channel.send({
-    type: 'broadcast',
-    event: 'MOBILE_BID',
-    payload: { participantId, amount },
-  });
+// Wrappers para compatibilidad con código legado si fuera necesario
+export async function updateRoomState(codigo: string, partial: Partial<RoomState>): Promise<void> {
+  await supabase.from('salas').update({ ...partial, updated_at: new Date().toISOString() }).eq('codigo', codigo.trim().toUpperCase());
 }
 
-/**
- * Enviar acción de pase de turno desde el celular hacia el canal de la sala
- */
-export async function sendMobilePass(
-  codigo: string,
-  participantId: string
-): Promise<void> {
-  const cleanCode = codigo.trim().toUpperCase();
-  const channel = supabase.channel(`room_${cleanCode}`);
-  await channel.send({
-    type: 'broadcast',
-    event: 'MOBILE_PASS',
-    payload: { participantId },
-  });
+export async function sendMobileBid(codigo: string, participantId: string, amount: number): Promise<void> {
+  const room = await getRoom(codigo);
+  if (room) await placeBidInRoom(room, participantId, amount);
 }
 
-/**
- * Enviar compra de pista confidencial desde el celular
- */
+export async function sendMobilePass(codigo: string, participantId: string): Promise<void> {
+  const room = await getRoom(codigo);
+  if (room) await passTurnInRoom(room, participantId);
+}
+
 export async function sendMobileCluePurchase(
   codigo: string,
   participantId: string,
   clueType: 'posicion' | 'continente' | 'decada'
 ): Promise<void> {
-  const cleanCode = codigo.trim().toUpperCase();
-  const channel = supabase.channel(`room_${cleanCode}`);
-  await channel.send({
-    type: 'broadcast',
-    event: 'MOBILE_BUY_CLUE',
-    payload: { participantId, clueType },
-  });
+  const room = await getRoom(codigo);
+  if (room) await buyClueInRoom(room, participantId, clueType);
 }
