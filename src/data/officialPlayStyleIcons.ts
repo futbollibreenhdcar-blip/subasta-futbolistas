@@ -1401,12 +1401,34 @@ export const OFFICIAL_PLAYSTYLE_ICONS: Record<string, PlayStyleVectorDef> = {
 export function getOfficialPlayStyle(identifier: string): PlayStyleVectorDef | null {
   if (!identifier) return null;
   const clean = identifier.trim();
-  return (
+  const normalized = clean.replace(/[\s-]+/g, '_').toUpperCase();
+  const slug = clean.replace(/[\s_]+/g, '-').toLowerCase();
+  const stripped = clean.replace(/^PLAYSTYLE_/i, '').replace(/[\s-]+/g, '_').toUpperCase();
+
+  // 1. Direct key lookups
+  const direct =
     OFFICIAL_PLAYSTYLE_ICONS[clean] ||
     OFFICIAL_PLAYSTYLE_ICONS[clean.toUpperCase()] ||
     OFFICIAL_PLAYSTYLE_ICONS[clean.toLowerCase()] ||
-    OFFICIAL_PLAYSTYLE_ICONS[clean.replace(/[s-]+/g, '_').toUpperCase()] ||
-    OFFICIAL_PLAYSTYLE_ICONS[clean.replace(/[s_]+/g, '-').toLowerCase()] ||
-    null
-  );
+    OFFICIAL_PLAYSTYLE_ICONS['PLAYSTYLE_' + stripped] ||
+    OFFICIAL_PLAYSTYLE_ICONS[stripped] ||
+    OFFICIAL_PLAYSTYLE_ICONS[normalized] ||
+    OFFICIAL_PLAYSTYLE_ICONS[slug];
+
+  if (direct) return direct;
+
+  // 2. Scan values by name, slug or Spanish title
+  const searchLower = clean.toLowerCase();
+  for (const def of Object.values(OFFICIAL_PLAYSTYLE_ICONS)) {
+    if (
+      def.name.toLowerCase() === searchLower ||
+      def.slug.toLowerCase() === searchLower ||
+      def.title.toLowerCase() === searchLower ||
+      def.title.toLowerCase().includes(searchLower)
+    ) {
+      return def;
+    }
+  }
+
+  return null;
 }
